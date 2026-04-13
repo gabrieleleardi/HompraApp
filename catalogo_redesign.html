@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Hompra – Catalogo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1a2e46;
+      --blue-btn: #2563eb;
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --border: #dde3ef;
+      --text-primary: #1a2e46;
+      --text-secondary: #6b7a99;
+      --text-meta: #9aa5be;
+      --radius: 12px;
+      --shadow: 0 1px 6px rgba(26,46,70,0.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 110;
+    }
+
+    /* Hompra logo SVG */
+    .logo-wrap { display: flex; align-items: center; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* "I miei Fornitori" */
+    .supplier-selector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      transition: border-color 0.15s;
+    }
+    .supplier-selector:hover { border-color: var(--navy); }
+    .supplier-selector span {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+    .supplier-selector svg { color: var(--text-secondary); }
+
+    /* User avatar */
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .avatar-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    /* ── SUPPLIER BANNER (shown when inside a supplier) ── */
+    .supplier-banner {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .supplier-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .supplier-info { flex: 1; min-width: 0; }
+    .supplier-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .supplier-count {
+      font-size: 12px;
+      color: var(--text-meta);
+      margin-top: 2px;
+      font-weight: 500;
+    }
+    .supplier-back {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 5px 8px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      white-space: nowrap;
+    }
+
+    /* ── SEARCH ── */
+    .search-wrap {
+      background: var(--navy);
+      padding: 12px 16px;
+      position: sticky;
+      top: 56px;
+      z-index: 109;
+    }
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.12);
+      border: 1.5px solid rgba(255,255,255,0.18);
+      border-radius: 10px;
+      padding: 9px 13px;
+      gap: 9px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .search-box:focus-within {
+      border-color: rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.17);
+    }
+    .search-box input {
+      background: none; border: none; outline: none;
+      color: #fff; font-size: 15px; flex: 1; font-family: inherit;
+    }
+    .search-box input::placeholder { color: rgba(255,255,255,0.45); }
+    .search-clear {
+      color: rgba(255,255,255,0.45);
+      font-size: 15px; cursor: pointer; display: none; line-height: 1;
+    }
+
+    /* ── STATUS FILTER BAR ── */
+    .status-bar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      position: sticky;
+      top: 116px;
+      z-index: 108;
+    }
+    .status-bar::-webkit-scrollbar { display: none; }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      border: 1.5px solid var(--border);
+      color: var(--text-secondary);
+      background: var(--bg);
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    .status-pill.active {
+      background: var(--blue-btn);
+      color: #fff;
+      border-color: var(--blue-btn);
+    }
+    .status-pill:not(.active):hover {
+      border-color: var(--blue-btn);
+      color: var(--blue-btn);
+    }
+    .pill-count { font-size: 11px; font-weight: 600; opacity: 0.75; }
+    .status-pill.active .pill-count { opacity: 0.9; }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      padding: 10px 16px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-count {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-meta);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: border-color 0.15s;
+    }
+    .filter-btn.open { border-color: var(--blue-btn); color: var(--blue-btn); }
+
+    /* ── FILTER PANEL – dropdown stile sito ── */
+    .filter-panel {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.28s ease;
+    }
+    .filter-panel.open { max-height: 200px; }
+
+    .filter-inner {
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .filter-group { flex: 1; min-width: 0; }
+    .filter-group label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--text-meta);
+      margin-bottom: 6px;
+    }
+    .filter-select {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa5be' stroke-width='2.5' stroke-linecap='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+      cursor: pointer;
+    }
+    .filter-select:focus { outline: none; border-color: var(--blue-btn); }
+
+    .filter-group-action { flex-shrink: 0; }
+    .btn-reset-filter {
+      padding: 9px 14px;
+      border-radius: 8px;
+      border: none;
+      background: var(--navy);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* ── PRODUCT LIST ── */
+    .product-list {
+      padding: 8px 16px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .section-label {
+      padding: 8px 0 2px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      color: var(--text-meta);
+    }
+
+    .product-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border: 1.5px solid transparent;
+      transition: border-color 0.12s;
+    }
+    .product-card:active { border-color: var(--blue-btn); }
+
+    /* Product image thumbnail */
+    .prod-thumb {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .prod-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 4px;
+    }
+    /* fallback icon when no image */
+    .prod-thumb svg { color: var(--text-meta); }
+
+    .prod-info { flex: 1; min-width: 0; }
+    .prod-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .prod-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 3px;
+    }
+    .prod-code {
+      font-size: 10px;
+      color: var(--text-meta);
+      font-weight: 600;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .prod-unit { font-size: 11px; color: var(--text-meta); }
+    .prod-price {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-top: 4px;
+      letter-spacing: -0.3px;
+    }
+
+    /* Qty controls */
+    .qty-controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .qty-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%; border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.1s;
+    }
+    .qty-btn:active { transform: scale(0.88); }
+    .qty-btn.plus { background: var(--navy); }
+    .qty-btn.minus { background: var(--bg); border: 1.5px solid var(--border); }
+    .qty-value { font-size: 15px; font-weight: 700; color: var(--text-primary); min-width: 18px; text-align: center; }
+    .qty-add-only {
+      width: 32px; height: 32px;
+      border-radius: 50%; background: var(--navy); border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform 0.1s;
+    }
+    .qty-add-only:active { transform: scale(0.88); }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed; bottom: 0;
+      left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 430px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding: 10px 0 20px;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+      font-size: 10.5px; color: var(--text-meta); cursor: pointer;
+    }
+    .nav-item.active { color: var(--navy); }
+    .nav-icon-wrap { position: relative; }
+    .nav-badge {
+      position: absolute; top: -4px; right: -8px;
+      background: #e63e3e; color: #fff;
+      font-size: 9px; font-weight: 700;
+      border-radius: 10px; padding: 1px 4px;
+      min-width: 16px; text-align: center;
+    }
+    .nav-label { font-weight: 500; }
+    .nav-item.active .nav-label { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER: Hompra logo + Fornitori + Avatar ── -->
+<div class="header">
+  <!-- Hompra logo (replicates site wordmark) -->
+  <div class="logo-wrap">
+    <svg width="110" height="26" viewBox="0 0 110 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- stylised "h" mark -->
+      <rect x="0" y="0" width="26" height="26" rx="5" fill="#1a2e46"/>
+      <path d="M7 20V7h3v5.5c.6-.8 1.6-1.3 2.8-1.3 2.1 0 3.5 1.5 3.5 3.8V20h-3v-4.6c0-1.1-.6-1.7-1.5-1.7-.9 0-1.8.7-1.8 2V20H7z" fill="white"/>
+      <!-- wordmark -->
+      <text x="32" y="19" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1a2e46" letter-spacing="-0.2">hompra</text>
+    </svg>
+  </div>
+
+  <div class="header-right">
+    <!-- I miei Fornitori -->
+    <div class="supplier-selector" id="supplierSelector">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <span>I miei Fornitori</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+
+    <!-- User avatar -->
+    <div class="avatar-row">
+      <div class="user-avatar">G</div>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa5be" stroke-width="2.5" stroke-linecap="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ── SUPPLIER BANNER (Ristorfoods Switzerland) ── -->
+<div class="supplier-banner">
+  <div class="supplier-logo">
+    <!-- Ristorfoods "R|" logo -->
+    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="52" height="52" rx="10" fill="#1a2e46"/>
+      <!-- R letter -->
+      <text x="7" y="36" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" font-weight="900" fill="white">R</text>
+      <!-- fork icon -->
+      <line x1="36" y1="12" x2="36" y2="40" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M32 13 L32 21 M32 13 C32 13 30 15 30 17 C30 19 32 21 32 21" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M40 13 L40 40" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M38 13 L38 18 C38 20 40 21 40 21" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="supplier-info">
+    <div class="supplier-name">Ristorfoods Switzerland</div>
+    <div class="supplier-count">4830 / 4830 ARTICOLI</div>
+  </div>
+  <button class="supplier-back">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Tutti
+  </button>
+</div>
+
+<!-- ── SEARCH ── -->
+<div class="search-wrap">
+  <div class="search-box">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" placeholder="Cerca prodotto..." id="searchInput" />
+    <span class="search-clear" id="searchClear">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </span>
+  </div>
+</div>
+
+<!-- ── STATUS FILTER BAR ── -->
+<div class="status-bar">
+  <div class="status-pill active">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    </svg>
+    Tutti
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+    I miei Prodotti <span class="pill-count">(29)</span>
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    Disponibili <span class="pill-count">(1494)</span>
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+    In Arrivo <span class="pill-count">(3238)</span>
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    Su Ordinazione <span class="pill-count">(98)</span>
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+      <line x1="7" y1="7" x2="7.01" y2="7"/>
+    </svg>
+    Novità <span class="pill-count">(57)</span>
+  </div>
+  <div class="status-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="5" x2="5" y2="19"/>
+      <circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>
+    </svg>
+    Promo <span class="pill-count">(3)</span>
+  </div>
+</div>
+
+<!-- ── TOOLBAR ── -->
+<div class="toolbar">
+  <span class="result-count">1494 prodotti</span>
+  <button class="filter-btn" id="filterToggle">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+    </svg>
+    Filtri
+    <svg id="filterChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="transition:transform 0.25s">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+</div>
+
+<!-- ── FILTER PANEL – stile sito: 2 dropdown + Resetta ── -->
+<div class="filter-panel" id="filterPanel">
+  <div class="filter-inner">
+    <div class="filter-group">
+      <label>Categoria</label>
+      <select class="filter-select">
+        <option>Tutte le categorie</option>
+        <option>Vini</option>
+        <option>Antipasti ed Aperitivi</option>
+        <option>Carni e Salumi</option>
+        <option>Latticini e Formaggi</option>
+        <option>Conserve e Condimenti</option>
+        <option>Bevande</option>
+        <option>Pasta e Riso</option>
+        <option>Abbigliamento</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Sottocategoria</label>
+      <select class="filter-select">
+        <option>Tutte le sottocategorie</option>
+        <option>Vino Bianco</option>
+        <option>Vino Rosso</option>
+        <option>Spumante</option>
+        <option>Filetti</option>
+        <option>Cappelli</option>
+      </select>
+    </div>
+    <div class="filter-group-action">
+      <label style="visibility:hidden;display:block;font-size:10px;margin-bottom:6px;">–</label>
+      <button class="btn-reset-filter" id="btnReset">Resetta Filtri</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRODUCT LIST ── -->
+<div class="product-list">
+
+  <div class="section-label">Vini</div>
+
+  <!-- Prodotto 1 – immagine bottiglia vino bianco -->
+  <div class="product-card">
+    <div class="prod-thumb">
+      <img src="https://images.vivino.com/thumbs/5szngy4-qyPg1q0jlbJkFg_pb_x300.png"
+           alt="Vino Bianco"
+           onerror="this.style.display='none';this.parentNode.innerHTML='<svg width=22 height=22 viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'1.6\' stroke-linecap=\'round\'><path d=\'M8 22h8M12 11v11M20 2H4l2 7a6 6 0 0 0 12 0l2-7z\'/></svg>'"/>
+    </div>
+    <div class="prod-info">
+      <div class="prod-name">"Bianc-One" Vino Bianco 2023 Piantagrossa</div>
+      <div class="prod-meta">
+        <span class="prod-code">#14559</span>
+        <span class="prod-unit">PZ · 750ml</span>
+      </div>
+      <div class="prod-price">CHF 20.00</div>
+    </div>
+    <div class="qty-controls">
+      <button class="qty-add-only">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Prodotto 2 -->
+  <div class="product-card">
+    <div class="prod-thumb">
+      <img src="https://images.vivino.com/thumbs/9vCetSzmBqADJoFVFb5MaQ_pb_x300.png"
+           alt="Vino Rosso"
+           onerror="this.style.display='none';this.parentNode.innerHTML='<svg width=22 height=22 viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'1.6\' stroke-linecap=\'round\'><path d=\'M8 22h8M12 11v11M20 2H4l2 7a6 6 0 0 0 12 0l2-7z\'/></svg>'"/>
+    </div>
+    <div class="prod-info">
+      <div class="prod-name">"Cavadiserpe" Terre Siciliane IGT Rosso 2021</div>
+      <div class="prod-meta">
+        <span class="prod-code">#14417</span>
+        <span class="prod-unit">PZ · 750ml</span>
+      </div>
+      <div class="prod-price">CHF 13.90</div>
+    </div>
+    <div class="qty-controls">
+      <button class="qty-btn plus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <span class="qty-value">1</span>
+      <button class="qty-btn minus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Prodotto 3 – Spumante -->
+  <div class="product-card">
+    <div class="prod-thumb">
+      <!-- Placeholder colorato categoria spumante -->
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 22h8M12 11v11M20 2H4l2 7a6 6 0 0 0 12 0l2-7z"/>
+        <path d="M10 7 Q12 5 14 7" stroke="#2563eb" stroke-width="1.2"/>
+      </svg>
+    </div>
+    <div class="prod-info">
+      <div class="prod-name">"Nomi" Spumante Brut Nature I Clivi</div>
+      <div class="prod-meta">
+        <span class="prod-code">#12454</span>
+        <span class="prod-unit">PZ · 750ml</span>
+      </div>
+      <div class="prod-price">CHF 14.55</div>
+    </div>
+    <div class="qty-controls">
+      <button class="qty-btn plus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <span class="qty-value">1</span>
+      <button class="qty-btn minus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="section-label">Abbigliamento</div>
+
+  <!-- Prodotto 4 – Cappello cuoco -->
+  <div class="product-card">
+    <div class="prod-thumb">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 14h12v6a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-6z"/>
+        <path d="M6 14c0-3 1.5-5 4-6a4 4 0 0 1 4 0c2.5 1 4 3 4 6"/>
+        <line x1="9" y1="14" x2="9" y2="21"/>
+        <line x1="15" y1="14" x2="15" y2="21"/>
+      </svg>
+    </div>
+    <div class="prod-info">
+      <div class="prod-name">Cappello Cuoco TNT Curvo – Alta Visibilità</div>
+      <div class="prod-meta">
+        <span class="prod-code">#15264</span>
+        <span class="prod-unit">CONF</span>
+      </div>
+      <div class="prod-price">CHF 43.00</div>
+    </div>
+    <div class="qty-controls">
+      <button class="qty-btn plus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <span class="qty-value">2</span>
+      <button class="qty-btn minus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="section-label">Conserve</div>
+
+  <!-- Prodotto 5 – Acciughe -->
+  <div class="product-card">
+    <div class="prod-thumb">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6b7a99" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 12C6.5 12 3 8 3 5c3 0 6 1.5 8 4l5-4c1 3-1 6-3 8l3 5c-3 0-5-1-7-3-2 2-4 3-7 3l5-6z"/>
+      </svg>
+    </div>
+    <div class="prod-info">
+      <div class="prod-name">Acciughe Filetti in Olio Girasole – Ristorfoods Chef</div>
+      <div class="prod-meta">
+        <span class="prod-code">#151</span>
+        <span class="prod-unit">PZ · 1.7kg</span>
+      </div>
+      <div class="prod-price">CHF 51.70</div>
+    </div>
+    <div class="qty-controls">
+      <button class="qty-add-only">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── BOTTOM NAV ── -->
+<div class="bottom-nav">
+  <div class="nav-item active">
+    <div class="nav-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+    </div>
+    <span class="nav-label">Catalogo</span>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <span class="nav-badge">5</span>
+    </div>
+    <span class="nav-label">Carrello</span>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+    </div>
+    <span class="nav-label">Ordini</span>
+  </div>
+  <div class="nav-item">
+    <div class="nav-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <span class="nav-label">Profilo</span>
+  </div>
+</div>
+
+<script>
+  /* Status pills */
+  document.querySelectorAll('.status-pill').forEach(p =>
+    p.addEventListener('click', () => {
+      document.querySelectorAll('.status-pill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+    })
+  );
+
+  /* Filter toggle */
+  const filterToggle  = document.getElementById('filterToggle');
+  const filterPanel   = document.getElementById('filterPanel');
+  const filterChevron = document.getElementById('filterChevron');
+  filterToggle.addEventListener('click', () => {
+    const open = filterPanel.classList.toggle('open');
+    filterToggle.classList.toggle('open', open);
+    filterChevron.style.transform = open ? 'rotate(180deg)' : '';
+  });
+
+  /* Resetta filtri */
+  document.getElementById('btnReset').addEventListener('click', () => {
+    document.querySelectorAll('.filter-select').forEach(s => s.selectedIndex = 0);
+    filterPanel.classList.remove('open');
+    filterToggle.classList.remove('open');
+    filterChevron.style.transform = '';
+  });
+
+  /* Qty helpers */
+  const plusSVG  = () => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const minusSVG = () => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+  const addSVG   = () => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+  function attachQty(wrap) {
+    wrap.querySelector('.plus')?.addEventListener('click', () => {
+      const v = wrap.querySelector('.qty-value');
+      v.textContent = +v.textContent + 1;
+    });
+    wrap.querySelector('.minus')?.addEventListener('click', () => {
+      const v = wrap.querySelector('.qty-value');
+      const n = +v.textContent - 1;
+      if (n <= 0) {
+        wrap.innerHTML = `<button class="qty-add-only">${addSVG()}</button>`;
+        wrap.querySelector('.qty-add-only').addEventListener('click', () => expandQty(wrap));
+      } else { v.textContent = n; }
+    });
+  }
+  function expandQty(wrap) {
+    wrap.innerHTML = `<button class="qty-btn plus">${plusSVG()}</button><span class="qty-value">1</span><button class="qty-btn minus">${minusSVG()}</button>`;
+    attachQty(wrap);
+  }
+  document.querySelectorAll('.qty-controls').forEach(wrap => {
+    if (wrap.querySelector('.plus')) attachQty(wrap);
+    wrap.querySelector('.qty-add-only')?.addEventListener('click', () => expandQty(wrap));
+  });
+
+  /* Search clear */
+  const inp = document.getElementById('searchInput');
+  const clr = document.getElementById('searchClear');
+  inp.addEventListener('input', () => clr.style.display = inp.value ? 'block' : 'none');
+  clr.addEventListener('click', () => { inp.value = ''; clr.style.display = 'none'; inp.focus(); });
+</script>
+</body>
+</html>
