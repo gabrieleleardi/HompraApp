@@ -57,12 +57,20 @@ export interface CartItem {
   };
 }
 
+export interface DeliveryRule {
+  weekday:          string;  // 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN'
+  cutoffDay?:       string | null;
+  cutoffTime?:      string | null;
+  cutoffDaysBefore?: number | null;
+}
+
 export interface Cart {
-  id:         string;
-  supplierId: string;
-  supplier:   Pick<Supplier, 'id' | 'name' | 'slug' | 'imageUrl' | 'shopLogoUrl' | 'logoBgColor'>;
-  items:      CartItem[];
-  totalCents: number;
+  id:             string;
+  supplierId:     string;
+  supplier:       Pick<Supplier, 'id' | 'name' | 'slug' | 'imageUrl' | 'shopLogoUrl' | 'logoBgColor'>;
+  items:          CartItem[];
+  totalCents:     number;
+  deliveryRules?: DeliveryRule[];
 }
 
 export type OrderStatus =

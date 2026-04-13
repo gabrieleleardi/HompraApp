@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, TextInput, ScrollView,
 } from 'react-native';
 import { useNavigation }     from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -30,6 +30,16 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
   DRAFT:     { label: 'Bozza',       color: COLORS.textSecondary, icon: 'document-outline' },
   PRE_ORDER: { label: 'Pre-ordine',  color: COLORS.accent, icon: 'calendar-outline' },
 };
+
+const STATUS_FILTERS = [
+  { key: 'ALL',       label: 'Tutti' },
+  { key: 'PENDING',   label: 'In attesa' },
+  { key: 'CONFIRMED', label: 'Confermato' },
+  { key: 'SHIPPED',   label: 'Spedito' },
+  { key: 'DELIVERED', label: 'Consegnato' },
+  { key: 'CANCELLED', label: 'Annullato' },
+  { key: 'PRE_ORDER', label: 'Pre-ordine' },
+];
 
 function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
   const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' };
@@ -67,6 +77,10 @@ export default function OrdersScreen() {
   const [refreshing,setRefreshing]= useState(false);
   const [error,     setError]     = useState('');
 
+  // Filtri
+  const [searchText,   setSearchText]   = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
   const load = useCallback(async (reset = false) => {
     setLoading(true);
     setError('');
@@ -93,37 +107,165 @@ export default function OrdersScreen() {
     }
   }
 
+  // Lista fornitori unici per il filtro
+  const suppliers = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach(o => map.set(o.supplierId, o.supplier.name));
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [orders]);
+
+  const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
+
+  // Ordini filtrati
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+
+    if (statusFilter !== 'ALL') {
+      result = result.filter(o => o.status === statusFilter);
+    }
+
+    if (supplierFilter) {
+      result = result.filter(o => o.supplierId === supplierFilter);
+    }
+
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase().trim();
+      result = result.filter(o =>
+        o.supplier.name.toLowerCase().includes(q) ||
+        o.publicCode?.toLowerCase().includes(q) ||
+        o.items.some(i => i.productName.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [orders, statusFilter, supplierFilter, searchText]);
+
+  const activeFilters = (statusFilter !== 'ALL' ? 1 : 0) + (supplierFilter ? 1 : 0) + (searchText.trim() ? 1 : 0);
+
   return (
-    <FlatList
-      data={orders}
-      keyExtractor={(o) => o.id}
-      renderItem={({ item }) =>
-        <OrderCard
-          order={item}
-          onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
-        />
-      }
-      onEndReached={loadMore}
-      onEndReachedThreshold={0.3}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); load(true); }}
-          tintColor={COLORS.primary}
-        />
-      }
-      contentContainerStyle={orders.length === 0 ? styles.emptyContainer : { padding: SPACING.md, gap: SPACING.sm }}
-      ListEmptyComponent={
-        loading ? null : (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={64} color={COLORS.border} />
-            <Text style={styles.emptyTitle}>{error || 'Nessun ordine'}</Text>
-            <Text style={styles.emptySubtitle}>I tuoi ordini appariranno qui</Text>
-          </View>
-        )
-      }
-      ListFooterComponent={loading ? <ActivityIndicator color={COLORS.primary} style={{ padding: SPACING.md }} /> : null}
-    />
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      {/* Barra ricerca */}
+      <View style={styles.searchBar}>
+        <View style={styles.searchInput}>
+          <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
+          <TextInput
+            style={styles.searchTextInput}
+            placeholder="Cerca ordine, fornitore, prodotto..."
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Filtri stato */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={styles.filtersRow}
+      >
+        {STATUS_FILTERS.map(f => {
+          const active = statusFilter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              onPress={() => setStatusFilter(active ? 'ALL' : f.key)}
+            >
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Filtro fornitore (se ci sono più fornitori) */}
+      {suppliers.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flexGrow: 0 }}
+          contentContainerStyle={styles.filtersRow}
+        >
+          {suppliers.map(s => {
+            const active = supplierFilter === s.id;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                style={[styles.filterChip, active && styles.filterChipActiveSecondary]}
+                onPress={() => setSupplierFilter(active ? null : s.id)}
+              >
+                <Ionicons
+                  name="storefront-outline"
+                  size={12}
+                  color={active ? '#fff' : COLORS.textSecondary}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {s.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Contatore risultati quando ci sono filtri attivi */}
+      {activeFilters > 0 && (
+        <View style={styles.resultCount}>
+          <Text style={styles.resultCountText}>
+            {filteredOrders.length} {filteredOrders.length === 1 ? 'ordine' : 'ordini'} trovati
+          </Text>
+          <TouchableOpacity onPress={() => { setStatusFilter('ALL'); setSupplierFilter(null); setSearchText(''); }}>
+            <Text style={styles.clearFilters}>Pulisci filtri</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Lista ordini */}
+      <FlatList
+        data={filteredOrders}
+        keyExtractor={(o) => o.id}
+        renderItem={({ item }) =>
+          <OrderCard
+            order={item}
+            onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+          />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.3}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(true); }}
+            tintColor={COLORS.primary}
+          />
+        }
+        contentContainerStyle={filteredOrders.length === 0 ? styles.emptyContainer : { padding: SPACING.md, gap: SPACING.sm }}
+        ListEmptyComponent={
+          loading ? null : (
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={64} color={COLORS.border} />
+              <Text style={styles.emptyTitle}>
+                {error || (activeFilters > 0 ? 'Nessun ordine trovato' : 'Nessun ordine')}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {activeFilters > 0 ? 'Prova a cambiare i filtri' : 'I tuoi ordini appariranno qui'}
+              </Text>
+            </View>
+          )
+        }
+        ListFooterComponent={loading ? <ActivityIndicator color={COLORS.primary} style={{ padding: SPACING.md }} /> : null}
+      />
+    </View>
   );
 }
 
@@ -133,6 +275,84 @@ const styles = StyleSheet.create({
   emptyTitle:     { fontSize: 18, fontWeight: '700', color: COLORS.text },
   emptySubtitle:  { fontSize: 14, color: COLORS.textSecondary },
 
+  // Ricerca
+  searchBar: {
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xs,
+  },
+  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.sm,
+    height: 42,
+    gap: 8,
+  },
+  searchTextInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    paddingVertical: 0,
+  },
+
+  // Filtri
+  filtersRow: {
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.xl,
+    paddingVertical: SPACING.xs,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterChipActiveSecondary: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+
+  // Contatore risultati
+  resultCount: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+  },
+  resultCountText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  clearFilters: {
+    fontSize: 12,
+    color: COLORS.accent,
+    fontWeight: '700',
+  },
+
+  // Card
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,

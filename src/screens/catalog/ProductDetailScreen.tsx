@@ -6,7 +6,7 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons }   from '@expo/vector-icons';
-import { getCatalog } from '@/api/catalog';
+import { getProduct } from '@/api/catalog';
 import { useCart }    from '@/context/CartContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Product } from '@/types';
@@ -30,13 +30,14 @@ export default function ProductDetailScreen({ route }: Props) {
   const cartItem = cart?.items.find((i) => i.productId === productId);
   const qty      = cartItem?.quantity ?? 0;
 
-  // Recupera i dati del prodotto cercandolo nel catalogo
+  // Recupera il singolo prodotto dal backend
   useEffect(() => {
     (async () => {
       try {
-        const data = await getCatalog(supplierId, { page: 1 });
-        const found = data.products.find((p) => p.id === productId);
-        setProduct(found ?? null);
+        const p = await getProduct(supplierId, productId);
+        setProduct(p);
+      } catch {
+        setProduct(null);
       } finally {
         setLoading(false);
       }

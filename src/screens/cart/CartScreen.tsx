@@ -106,11 +106,15 @@ const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const DAYS_HDR  = ['Lu','Ma','Me','Gi','Ve','Sa','Do'];
 
-function DatePickerModal({ visible, value, onConfirm, onDismiss }: {
-  visible:   boolean;
-  value:     Date | null;
-  onConfirm: (d: Date) => void;
-  onDismiss: () => void;
+const WEEKDAY_MAP: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const WEEKDAY_REVERSE = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }: {
+  visible:        boolean;
+  value:          Date | null;
+  onConfirm:      (d: Date) => void;
+  onDismiss:      () => void;
+  deliveryRules?: { weekday: string; cutoffDay?: string | null; cutoffTime?: string | null; cutoffDaysBefore?: number | null }[];
 }) {
   const today = new Date();
   const [cursor, setCursor] = useState(() => value ?? today);
@@ -140,10 +144,40 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss }: {
   function isSel(d: number) {
     return selected?.getFullYear() === year && selected?.getMonth() === month && selected?.getDate() === d;
   }
-  function isPast(d: number) {
+
+  // Logica di validazione date con delivery rules (stessa del sito web)
+  function isAllowed(d: number) {
     const dt = new Date(year, month, d);
-    dt.setHours(0,0,0,0); today.setHours(0,0,0,0);
-    return dt < today;
+    const now = new Date();
+    const dayOfWeek = dt.getDay();
+    const dayStr = WEEKDAY_REVERSE[dayOfWeek];
+
+    // Se non ci sono regole, permetti Lun-Ven nel futuro
+    if (!deliveryRules || deliveryRules.length === 0) {
+      dt.setHours(0,0,0,0);
+      const todayZero = new Date(); todayZero.setHours(0,0,0,0);
+      return dayOfWeek >= 1 && dayOfWeek <= 5 && dt > todayZero;
+    }
+
+    // Cerca regola per questo giorno della settimana
+    const rule = deliveryRules.find(r => r.weekday === dayStr);
+    if (!rule) return false;
+
+    // Cut-off: il giorno da cui parte il cut-off (default: giorno prima della consegna)
+    const cutoffDayStr = rule.cutoffDay || WEEKDAY_REVERSE[(dayOfWeek + 6) % 7];
+    const cutoffTimeStr = rule.cutoffTime || '15:00';
+    const cutoffDayIdx = WEEKDAY_MAP[cutoffDayStr] ?? ((dayOfWeek + 6) % 7);
+
+    // Quanti giorni indietro rispetto alla data di consegna
+    let daysAgo = dayOfWeek - cutoffDayIdx;
+    if (daysAgo < 0) daysAgo += 7;
+
+    const cutoffDate = new Date(dt);
+    cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+    const [hours, minutes] = cutoffTimeStr.split(':').map(Number);
+    cutoffDate.setHours(hours, minutes, 0, 0);
+
+    return now < cutoffDate;
   }
 
   return (
@@ -178,18 +212,18 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss }: {
         <View style={dpStyles.grid}>
           {cells.map((d, idx) => {
             if (!d) return <View key={`e${idx}`} style={dpStyles.cell} />;
-            const past = isPast(d);
+            const allowed = isAllowed(d);
             const sel  = isSel(d);
             const tod  = isToday(d);
             return (
               <TouchableOpacity
                 key={`d${idx}`}
                 style={[dpStyles.cell, sel && dpStyles.cellSel, !sel && tod && dpStyles.cellToday]}
-                onPress={() => !past && setSelected(new Date(year, month, d))}
-                disabled={past}
+                onPress={() => allowed && setSelected(new Date(year, month, d))}
+                disabled={!allowed}
                 activeOpacity={0.7}
               >
-                <Text style={[dpStyles.cellText, past && dpStyles.cellPast, sel && dpStyles.cellTextSel]}>{d}</Text>
+                <Text style={[dpStyles.cellText, !allowed && dpStyles.cellPast, sel && dpStyles.cellTextSel]}>{d}</Text>
               </TouchableOpacity>
             );
           })}
@@ -446,6 +480,7 @@ function CartCard({ cart }: { cart: Cart }) {
         value={deliveryDate}
         onConfirm={d => { setDeliveryDate(d); setShowDatePicker(false); }}
         onDismiss={() => setShowDatePicker(false)}
+        deliveryRules={cart.deliveryRules}
       />
     </View>
   );

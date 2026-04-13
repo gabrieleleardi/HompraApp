@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { CatalogResponse, Supplier } from '@/types';
+import type { CatalogResponse, Product, Supplier } from '@/types';
 
 export async function getSuppliers(): Promise<Supplier[]> {
   const { data } = await apiClient.get<{ suppliers: Supplier[] }>('/suppliers');
@@ -25,4 +25,14 @@ export async function getCatalog(
     params: { supplierId, ...params },
   });
   return data;
+}
+
+export async function getProduct(
+  supplierId: string,
+  productId: string,
+): Promise<Product> {
+  const { data } = await apiClient.get<{ product: Product }>('/catalog', {
+    params: { supplierId, productId },
+  });
+  return data.product;
 }
