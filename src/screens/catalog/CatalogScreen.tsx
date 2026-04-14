@@ -230,7 +230,16 @@ export default function CatalogScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [activeSupplierId, search, activeCategory, activeSubcategory, statusFilter]);
 
-  useEffect(() => { loadCatalog(1, true); }, [activeSupplierId, activeCategory, activeSubcategory, statusFilter, loadCatalog]);
+  // Ref sempre aggiornato a loadCatalog per poter chiamare l'ultima versione
+  // senza dover rimettere loadCatalog nelle deps dei useEffect (eviterebbe doppie fetch).
+  const loadCatalogRef = useRef(loadCatalog);
+  useEffect(() => { loadCatalogRef.current = loadCatalog; }, [loadCatalog]);
+
+  // Ricarica quando cambiano supplier, categoria, sottocategoria o filtro stato
+  useEffect(() => {
+    loadCatalogRef.current(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSupplierId, activeCategory, activeSubcategory, statusFilter]);
 
   // Filtro lato client come doppio controllo — anche se l'API filtra già,
   // riapplichiamo la regola per coerenza (e per funzionare se il backend
@@ -247,11 +256,13 @@ export default function CatalogScreen() {
     }
   }, [products, statusFilter]);
 
+  // Debounce sulla ricerca: non dipende da loadCatalog (usa il ref),
+  // così cambi di statusFilter/categoria non ritriggerano la fetch ritardata.
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => loadCatalog(1, true), 400);
+    searchTimer.current = setTimeout(() => loadCatalogRef.current(1, true), 400);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [search, loadCatalog]);
+  }, [search]);
 
   useEffect(() => {
     if (activeSupplierId) fetchCarts(activeSupplierId);
