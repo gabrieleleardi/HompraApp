@@ -18,7 +18,8 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
+type IoniconsName = keyof typeof Ionicons.glyphMap;
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: IoniconsName }> = {
   PENDING:   { label: 'In attesa',   color: '#d97706', icon: 'time-outline' },
   CONFIRMED: { label: 'Confermato',  color: COLORS.success, icon: 'checkmark-circle-outline' },
   SHIPPED:   { label: 'Spedito',     color: '#4338ca', icon: 'bicycle-outline' },
@@ -39,8 +40,8 @@ export default function OrderDetailScreen({ route }: Props) {
       try {
         const data = await getOrder(orderId);
         setOrder(data);
-      } catch (e: any) {
-        setError(e?.response?.data?.error ?? 'Errore caricamento ordine.');
+      } catch (e) {
+        setError((e as any)?.response?.data?.error ?? 'Errore caricamento ordine.');
       } finally {
         setLoading(false);
       }
@@ -57,7 +58,7 @@ export default function OrderDetailScreen({ route }: Props) {
     );
   }
 
-  const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' };
+  const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' as IoniconsName };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -66,7 +67,7 @@ export default function OrderDetailScreen({ route }: Props) {
         <View style={styles.headerRow}>
           <Text style={styles.supplierName}>{order.supplier.name}</Text>
           <View style={[styles.statusBadge, { backgroundColor: `${status.color}22` }]}>
-            <Ionicons name={status.icon as any} size={14} color={status.color} />
+            <Ionicons name={status.icon} size={14} color={status.color} />
             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
           </View>
         </View>

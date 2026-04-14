@@ -21,7 +21,8 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
+type IoniconsName = keyof typeof Ionicons.glyphMap;
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: IoniconsName }> = {
   PENDING:   { label: 'In attesa',   color: '#d97706', icon: 'time-outline' },
   CONFIRMED: { label: 'Confermato',  color: COLORS.success, icon: 'checkmark-circle-outline' },
   SHIPPED:   { label: 'Spedito',     color: '#4338ca', icon: 'bicycle-outline' },
@@ -42,7 +43,7 @@ const STATUS_FILTERS = [
 ];
 
 function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
-  const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' };
+  const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' as IoniconsName };
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
@@ -52,7 +53,7 @@ function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
           {order.publicCode && <Text style={styles.orderCode}># {order.publicCode}</Text>}
         </View>
         <View style={[styles.statusBadge, { backgroundColor: `${status.color}18` }]}>
-          <Ionicons name={status.icon as any} size={13} color={status.color} />
+          <Ionicons name={status.icon} size={13} color={status.color} />
           <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
         </View>
       </View>

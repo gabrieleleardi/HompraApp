@@ -19,10 +19,11 @@ const AVAIL_LEGEND = [
   { color: '#ef4444', label: 'Su Ordinazione',        sub: 'Tempi di attesa variabili' },
 ];
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+type IoniconsName = keyof typeof Ionicons.glyphMap;
+function InfoRow({ icon, label, value }: { icon: IoniconsName; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
-      <Ionicons name={icon as any} size={18} color={COLORS.accent} style={styles.infoIcon} />
+      <Ionicons name={icon} size={18} color={COLORS.accent} style={styles.infoIcon} />
       <View style={styles.infoTexts}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>

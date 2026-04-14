@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, RefreshControl, TextInput, Image, Switch, Modal,
@@ -490,7 +490,7 @@ function CartCard({ cart }: { cart: Cart }) {
 export default function CartScreen() {
   const { carts, isLoading, fetchCarts } = useCart();
 
-  useEffect(() => { fetchCarts(); }, []);
+  useEffect(() => { fetchCarts(); }, [fetchCarts]);
 
   if (isLoading && carts.length === 0) {
     return <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />;

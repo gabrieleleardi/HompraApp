@@ -9,7 +9,7 @@ import {
 import { useNavigation }            from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons }                 from '@expo/vector-icons';
-import { getCatalog, CatalogFilters } from '@/api/catalog';
+import { getCatalog } from '@/api/catalog';
 import { getSuppliers }             from '@/api/catalog';
 import { useCart }                  from '@/context/CartContext';
 import { useAuth }                  from '@/context/AuthContext';
@@ -34,18 +34,6 @@ const STATUS_PILLS: { key: StatusFilter; label: string; icon: keyof typeof Ionic
   { key: 'new',       label: 'Novità',          icon: 'pricetag-outline'  },
   { key: 'promo',     label: 'Promo',           icon: 'pricetags-outline'   },
 ];
-
-function statusToApiParams(s: StatusFilter): Partial<CatalogFilters> {
-  switch (s) {
-    case 'available': return { availability: 'AVAILABLE' };
-    case 'coming':    return { availability: 'COMING_SOON' };
-    case 'onorder':   return { availability: 'ON_ORDER' };
-    case 'new':       return { isNew: true };
-    case 'promo':     return { isPromo: true };
-    case 'mine':      return { isMine: true };
-    default:          return {};
-  }
-}
 
 function formatPrice(cents: number, currency = 'CHF') {
   return `${currency} ${(cents / 100).toFixed(2)}`;
@@ -218,7 +206,7 @@ export default function CatalogScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [activeSupplierId, search, activeCategory, activeSubcategory]);
 
-  useEffect(() => { loadCatalog(1, true); }, [activeSupplierId, activeCategory, activeSubcategory]);
+  useEffect(() => { loadCatalog(1, true); }, [activeSupplierId, activeCategory, activeSubcategory, loadCatalog]);
 
   // ── Filtro client-side per le pills ──────────────────────────────────────
   const visibleProducts = useMemo(() => {
@@ -237,11 +225,11 @@ export default function CatalogScreen() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => loadCatalog(1, true), 400);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [search]);
+  }, [search, loadCatalog]);
 
   useEffect(() => {
     if (activeSupplierId) fetchCarts(activeSupplierId);
-  }, [activeSupplierId]);
+  }, [activeSupplierId, fetchCarts]);
 
   function loadMore() {
     if (products.length < total && !loading) {
