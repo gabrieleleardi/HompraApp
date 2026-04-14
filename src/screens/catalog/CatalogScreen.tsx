@@ -14,6 +14,7 @@ import { getSuppliers }             from '@/api/catalog';
 import { useCart }                  from '@/context/CartContext';
 import { useAuth }                  from '@/context/AuthContext';
 import { getErrorMessage }          from '@/api/client';
+import { useI18n }                  from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS }  from '@/constants';
 import type { Product, Supplier }   from '@/types';
 import type { RootStackParamList }  from '@/navigation';
@@ -25,14 +26,14 @@ const PILL_ACTIVE = '#2563eb';
 
 type StatusFilter = 'all' | 'mine' | 'available' | 'coming' | 'onorder' | 'new' | 'promo';
 
-const STATUS_PILLS: { key: StatusFilter; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'all',       label: 'Tutti',           icon: 'grid-outline'      },
-  { key: 'mine',      label: 'I miei Prodotti', icon: 'star-outline'      },
-  { key: 'available', label: 'Disponibili',     icon: 'checkmark-outline' },
-  { key: 'coming',    label: 'In Arrivo',       icon: 'car-outline'       },
-  { key: 'onorder',   label: 'Su Ordinazione',  icon: 'time-outline'      },
-  { key: 'new',       label: 'Novità',          icon: 'pricetag-outline'  },
-  { key: 'promo',     label: 'Promo',           icon: 'pricetags-outline'   },
+const STATUS_PILLS: { key: StatusFilter; labelKey: string; fallback: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'all',       labelKey: 'mobile.catalog.allFilter',       fallback: 'Tutti',           icon: 'grid-outline'      },
+  { key: 'mine',      labelKey: 'mobile.catalog.mine',            fallback: 'I miei Prodotti', icon: 'star-outline'      },
+  { key: 'available', labelKey: 'mobile.catalog.availableFilter', fallback: 'Disponibili',     icon: 'checkmark-outline' },
+  { key: 'coming',    labelKey: 'mobile.catalog.coming',          fallback: 'In Arrivo',       icon: 'car-outline'       },
+  { key: 'onorder',   labelKey: 'mobile.catalog.onorder',         fallback: 'Su Ordinazione',  icon: 'time-outline'      },
+  { key: 'new',       labelKey: 'mobile.catalog.newFilter',       fallback: 'Novità',          icon: 'pricetag-outline'  },
+  { key: 'promo',     labelKey: 'mobile.catalog.promo',           fallback: 'Promo',           icon: 'pricetags-outline' },
 ];
 
 function formatPrice(cents: number, currency = 'CHF') {
@@ -119,6 +120,7 @@ export default function CatalogScreen() {
   const navigation = useNavigation<Nav>();
   const { fetchCarts } = useCart();
   const { user } = useAuth();
+  const { t } = useI18n();
 
   const [suppliers,            setSuppliers]            = useState<Supplier[]>([]);
   const [activeSupplierId,     setActiveSupplierId]     = useState<string | null>(null);
@@ -152,7 +154,7 @@ export default function CatalogScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.supplierSelectorBtn} onPress={() => setSupplierModalVisible(true)}>
             <Ionicons name="lock-closed-outline" size={13} color={COLORS.textSecondary} />
-            <Text style={styles.supplierSelectorText} numberOfLines={1}>I miei Fornitori</Text>
+            <Text style={styles.supplierSelectorText} numberOfLines={1}>{t('mobile.catalog.suppliers', 'I miei Fornitori')}</Text>
             <Ionicons name="chevron-down" size={12} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as any)}>
@@ -161,7 +163,7 @@ export default function CatalogScreen() {
         </View>
       ),
     });
-  }, [navigation, user]);
+  }, [navigation, user, t]);
 
   // ── Carica fornitori ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -169,10 +171,31 @@ export default function CatalogScreen() {
       try {
         const list = await getSuppliers();
         setSuppliers(list);
-        if (list.length > 0) setActiveSupplierId(list[0].id);
+        if (list.length === 1) {
+          // Un solo fornitore: selezionalo direttamente
+          setActiveSupplierId(list[0].id);
+        } else if (list.length > 1) {
+          // Più fornitori: apri il modale per scegliere (senza preferenze)
+          setSupplierModalVisible(true);
+        }
       } catch (e) { setError(getErrorMessage(e)); }
     })();
   }, []);
+
+  // Converte lo statusFilter (pill) in parametri API
+  function statusToApiParams(s: StatusFilter): Partial<{
+    availability: string; isNew: boolean; isPromo: boolean; isMine: boolean;
+  }> {
+    switch (s) {
+      case 'available': return { availability: 'AVAILABLE' };
+      case 'coming':    return { availability: 'COMING_SOON,WEEKLY_RESTOCK' };
+      case 'onorder':   return { availability: 'ON_ORDER' };
+      case 'new':       return { isNew: true };
+      case 'promo':     return { isPromo: true };
+      case 'mine':      return { isMine: true };
+      default:          return {};
+    }
+  }
 
   // ── Carica catalogo ──────────────────────────────────────────────────────
   const loadCatalog = useCallback(async (pageToLoad: number, reset = false) => {
@@ -184,6 +207,7 @@ export default function CatalogScreen() {
         search:      search.trim() || undefined,
         category:    activeCategory    || undefined,
         subcategory: activeSubcategory || undefined,
+        ...statusToApiParams(statusFilter),
         page:        pageToLoad,
       });
       setProducts(prev => {
@@ -204,11 +228,13 @@ export default function CatalogScreen() {
       }
     } catch (e) { setError(getErrorMessage(e)); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [activeSupplierId, search, activeCategory, activeSubcategory]);
+  }, [activeSupplierId, search, activeCategory, activeSubcategory, statusFilter]);
 
-  useEffect(() => { loadCatalog(1, true); }, [activeSupplierId, activeCategory, activeSubcategory, loadCatalog]);
+  useEffect(() => { loadCatalog(1, true); }, [activeSupplierId, activeCategory, activeSubcategory, statusFilter, loadCatalog]);
 
-  // ── Filtro client-side per le pills ──────────────────────────────────────
+  // Filtro lato client come doppio controllo — anche se l'API filtra già,
+  // riapplichiamo la regola per coerenza (e per funzionare se il backend
+  // non è ancora stato aggiornato con i filtri server-side).
   const visibleProducts = useMemo(() => {
     switch (statusFilter) {
       case 'available': return products.filter(p => p.availability === 'AVAILABLE');
@@ -273,7 +299,7 @@ export default function CatalogScreen() {
           </View>
           <View style={styles.supplierInfo}>
             <Text style={styles.supplierName}>{activeSupplier.name}</Text>
-            <Text style={styles.supplierCount}>{total > 0 ? `${total} / ${total} ARTICOLI` : '— ARTICOLI'}</Text>
+            <Text style={styles.supplierCount}>{total > 0 ? `${total} / ${total} ${t('mobile.catalog.articles', 'ARTICOLI')}` : `— ${t('mobile.catalog.articles', 'ARTICOLI')}`}</Text>
           </View>
         </View>
       )}
@@ -284,7 +310,7 @@ export default function CatalogScreen() {
           <Ionicons name="search" size={16} color={COLORS.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cerca prodotto..."
+            placeholder={t('mobile.catalog.search', 'Cerca prodotto...')}
             placeholderTextColor={COLORS.textSecondary}
             value={search}
             onChangeText={setSearch}
@@ -310,7 +336,7 @@ export default function CatalogScreen() {
             >
               <Ionicons name={pill.icon} size={13} color={statusFilter === pill.key ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.statusPillText, statusFilter === pill.key && styles.statusPillTextActive]}>
-                {pill.label}
+                {t(pill.labelKey, pill.fallback)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -320,11 +346,11 @@ export default function CatalogScreen() {
       {/* ── TOOLBAR ── */}
       <View style={styles.toolbar}>
         <Text style={styles.resultCount}>
-          {statusFilter === 'all' ? total : visibleProducts.length} prodotti
+          {statusFilter === 'all' ? total : visibleProducts.length} {t('mobile.catalog.products', 'prodotti').toLowerCase()}
         </Text>
         <TouchableOpacity style={[styles.filterBtn, filterOpen && styles.filterBtnOpen]} onPress={toggleFilter} activeOpacity={0.8}>
           <Ionicons name="options-outline" size={14} color={filterOpen ? PILL_ACTIVE : COLORS.text} />
-          <Text style={[styles.filterBtnText, filterOpen && styles.filterBtnTextOpen]}>Filtri</Text>
+          <Text style={[styles.filterBtnText, filterOpen && styles.filterBtnTextOpen]}>{t('mobile.catalog.filters', 'Filtri')}</Text>
           <Ionicons name={filterOpen ? 'chevron-up' : 'chevron-down'} size={12} color={filterOpen ? PILL_ACTIVE : COLORS.text} />
         </TouchableOpacity>
       </View>
@@ -334,10 +360,10 @@ export default function CatalogScreen() {
         <View style={styles.filterInner}>
           {/* CATEGORIA dropdown */}
           <View style={styles.filterDropGroup}>
-            <Text style={styles.filterGroupLabel}>CATEGORIA</Text>
+            <Text style={styles.filterGroupLabel}>{t('mobile.catalog.category', 'CATEGORIA')}</Text>
             <TouchableOpacity style={styles.filterDropBtn} onPress={() => setCatPickerVisible(true)} activeOpacity={0.75}>
               <Text style={styles.filterDropText} numberOfLines={1}>
-                {activeCategory || 'Tutte le categorie'}
+                {activeCategory || t('mobile.catalog.allCategories', 'Tutte le categorie')}
               </Text>
               <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -345,14 +371,14 @@ export default function CatalogScreen() {
 
           {/* SOTTOCATEGORIA dropdown */}
           <View style={styles.filterDropGroup}>
-            <Text style={styles.filterGroupLabel}>SOTTOCATEGORIA</Text>
+            <Text style={styles.filterGroupLabel}>{t('mobile.catalog.subcategory', 'SOTTOCATEGORIA')}</Text>
             <TouchableOpacity
               style={[styles.filterDropBtn, (!activeCategory || subcategories.length === 0) && styles.filterDropBtnDisabled]}
               onPress={() => activeCategory && subcategories.length > 0 && setSubcatPickerVisible(true)}
               activeOpacity={0.75}
             >
               <Text style={[styles.filterDropText, (!activeCategory || subcategories.length === 0) && { color: COLORS.textSecondary }]} numberOfLines={1}>
-                {activeSubcategory || 'Tutte le sottocategorie'}
+                {activeSubcategory || t('mobile.catalog.allSubcategories', 'Tutte le sottocategorie')}
               </Text>
               <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -360,9 +386,9 @@ export default function CatalogScreen() {
 
           {/* AZIONE */}
           <View style={styles.filterDropAction}>
-            <Text style={styles.filterGroupLabel}>AZIONE</Text>
+            <Text style={styles.filterGroupLabel}>{t('mobile.catalog.action', 'AZIONE')}</Text>
             <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
-              <Text style={styles.resetBtnText}>Resetta Filtri</Text>
+              <Text style={styles.resetBtnText}>{t('mobile.catalog.resetFilters', 'Resetta Filtri')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -373,12 +399,12 @@ export default function CatalogScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCatPickerVisible(false)} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Categoria</Text>
+          <Text style={styles.modalTitle}>{t('mobile.catalog.category', 'CATEGORIA')}</Text>
           <TouchableOpacity
             style={[styles.pickerRow, !activeCategory && styles.pickerRowActive]}
             onPress={() => { setActiveCategory(''); setActiveSubcategory(''); setCatPickerVisible(false); }}
           >
-            <Text style={[styles.pickerRowText, !activeCategory && styles.pickerRowTextActive]}>Tutte le categorie</Text>
+            <Text style={[styles.pickerRowText, !activeCategory && styles.pickerRowTextActive]}>{t('mobile.catalog.allCategories', 'Tutte le categorie')}</Text>
             {!activeCategory && <Ionicons name="checkmark" size={16} color={PILL_ACTIVE} />}
           </TouchableOpacity>
           {categories.map(cat => (
@@ -399,12 +425,12 @@ export default function CatalogScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSubcatPickerVisible(false)} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Sottocategoria</Text>
+          <Text style={styles.modalTitle}>{t('mobile.catalog.subcategory', 'SOTTOCATEGORIA')}</Text>
           <TouchableOpacity
             style={[styles.pickerRow, !activeSubcategory && styles.pickerRowActive]}
             onPress={() => { setActiveSubcategory(''); setSubcatPickerVisible(false); }}
           >
-            <Text style={[styles.pickerRowText, !activeSubcategory && styles.pickerRowTextActive]}>Tutte le sottocategorie</Text>
+            <Text style={[styles.pickerRowText, !activeSubcategory && styles.pickerRowTextActive]}>{t('mobile.catalog.allSubcategories', 'Tutte le sottocategorie')}</Text>
             {!activeSubcategory && <Ionicons name="checkmark" size={16} color={PILL_ACTIVE} />}
           </TouchableOpacity>
           {subcategories.map(sub => (
@@ -459,7 +485,7 @@ export default function CatalogScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSupplierModalVisible(false)} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>I miei Fornitori</Text>
+          <Text style={styles.modalTitle}>{t('mobile.catalog.suppliers', 'I miei Fornitori')}</Text>
           {suppliers.map(s => (
             <TouchableOpacity
               key={s.id}
