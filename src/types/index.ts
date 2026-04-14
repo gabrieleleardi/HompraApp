@@ -44,6 +44,9 @@ export interface Product {
   availability: Availability;
   notes?:       string | null;
   cutoffTime?:  string | null;
+  restockRulesJson?: any;            // mappa giorno ordine → giorno arrivo (WEEKLY_RESTOCK)
+  leadTimeDays?:     number | null;  // giorni di lead time (ON_ORDER)
+  expectedArrival?:  string | null;  // data attesa ISO (COMING_SOON)
   customerPriceCents?: number | null; // prezzo dedicato se presente
 }
 
@@ -52,7 +55,7 @@ export interface CartItem {
   productId: string;
   quantity:  number;
   notes?:    string | null;
-  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo'> & {
+  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival'> & {
     customerPriceCents?: number | null;
   };
 }

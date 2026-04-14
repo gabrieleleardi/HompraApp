@@ -15,16 +15,82 @@ function fmt(cents: number, currency = 'CHF') {
   return `${currency} ${(cents / 100).toFixed(2)}`;
 }
 
-const AVAIL_GROUPS: { key: Availability | 'WEEKLY_RESTOCK'; label: string }[] = [
-  { key: 'AVAILABLE',      label: 'PRONTA CONSEGNA'       },
-  { key: 'COMING_SOON',    label: 'PRE-ORDINE (IN ARRIVO)'},
-  { key: 'WEEKLY_RESTOCK', label: 'RIASSORTIMENTO'        },
-  { key: 'ON_ORDER',       label: 'SU ORDINAZIONE'        },
-];
-
 function availDot(a?: Availability) {
   const color = a === 'AVAILABLE' ? '#22c55e' : a === 'COMING_SOON' || a === 'WEEKLY_RESTOCK' ? '#f59e0b' : '#ef4444';
   return <View style={[styles.dot, { backgroundColor: color }]} />;
+}
+
+// ─── logica disponibilità (replicata identica dal sito web) ─────────────────
+const WEEKDAY_MAP_CART: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const INDEX_TO_KEY_CART = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+function parseDay(val: any): string | null {
+  if (!val) return null;
+  const s = String(val).toUpperCase().trim();
+  if (s.startsWith('LUN') || s === 'MON') return 'MON';
+  if (s.startsWith('MAR') || s === 'TUE') return 'TUE';
+  if (s.startsWith('MER') || s === 'WED') return 'WED';
+  if (s.startsWith('GIO') || s === 'THU') return 'THU';
+  if (s.startsWith('VEN') || s === 'FRI') return 'FRI';
+  if (s.startsWith('SAB') || s === 'SAT') return 'SAT';
+  if (s.startsWith('DOM') || s === 'SUN') return 'SUN';
+  return null;
+}
+
+function isProductReady(p: CartItem['product'], targetDate: Date): boolean {
+  const now = new Date();
+
+  if (p.availability === 'AVAILABLE') return true;
+
+  if (p.availability === 'WEEKLY_RESTOCK') {
+    let rulesObj: any = p.restockRulesJson;
+    if (typeof rulesObj === 'string') {
+      try { rulesObj = JSON.parse(rulesObj); } catch {}
+    }
+    const normalizedRules: Record<string, string> = {};
+    if (rulesObj) {
+      Object.entries(rulesObj).forEach(([k, v]) => {
+        const pk = parseDay(k); const pv = parseDay(v);
+        if (pk && pv) normalizedRules[pk] = pv;
+      });
+    }
+    const cutoff = p.cutoffTime || '11:00';
+    const [cHH, cMM] = cutoff.split(':').map(Number);
+    const cutoffToday = new Date(now); cutoffToday.setHours(cHH, cMM, 0, 0);
+    let effectiveDayIdx = now.getDay();
+    if (now >= cutoffToday) effectiveDayIdx = (effectiveDayIdx + 1) % 7;
+    const arrivalDayKey = normalizedRules[INDEX_TO_KEY_CART[effectiveDayIdx]];
+    if (arrivalDayKey) {
+      const arrivalDayIdx = WEEKDAY_MAP_CART[arrivalDayKey];
+      if (arrivalDayIdx !== undefined) {
+        const arrivalDate = new Date(now);
+        if (now >= cutoffToday) arrivalDate.setDate(arrivalDate.getDate() + 1);
+        let safety = 0;
+        while (arrivalDate.getDay() !== arrivalDayIdx && safety < 8) {
+          arrivalDate.setDate(arrivalDate.getDate() + 1); safety++;
+        }
+        arrivalDate.setHours(0, 0, 0, 0);
+        return targetDate >= arrivalDate;
+      }
+    }
+    return false;
+  }
+
+  if (p.availability === 'ON_ORDER') {
+    const leadDays = p.leadTimeDays ? Number(p.leadTimeDays) : 0;
+    const arrivalDate = new Date(now);
+    arrivalDate.setDate(arrivalDate.getDate() + leadDays);
+    arrivalDate.setHours(0, 0, 0, 0);
+    return targetDate >= arrivalDate;
+  }
+
+  if (p.availability === 'COMING_SOON' && p.expectedArrival) {
+    const arrivalDate = new Date(p.expectedArrival);
+    arrivalDate.setHours(0, 0, 0, 0);
+    return targetDate >= arrivalDate;
+  }
+
+  return false;
 }
 
 // ─── CartItemRow ─────────────────────────────────────────────────────────────
@@ -303,12 +369,23 @@ function CartCard({ cart }: { cart: Cart }) {
   const shipping    = belowMin ? SHIPPING : 0;
   const total       = netto + iva + shipping;
 
-  // Raggruppamento per disponibilità
-  const grouped = AVAIL_GROUPS.map(g => ({
-    label: g.label,
-    key:   g.key,
-    items: cart.items.filter(i => (i.product.availability ?? 'AVAILABLE') === g.key),
-  })).filter(g => g.items.length > 0);
+  // Raggruppamento in 2 gruppi (identico al sito web):
+  // PRONTA CONSEGNA = prodotti disponibili alla data selezionata
+  // PRE-ORDINE (IN ARRIVO) = prodotti non ancora disponibili per quella data
+  const targetDate = new Date(deliveryDate ?? new Date());
+  targetDate.setHours(0, 0, 0, 0);
+
+  const availableItems: CartItem[] = [];
+  const preOrderItems: CartItem[] = [];
+  for (const item of cart.items) {
+    if (isProductReady(item.product, targetDate)) availableItems.push(item);
+    else preOrderItems.push(item);
+  }
+
+  const grouped = [
+    { key: 'AVAILABLE' as Availability, label: 'PRONTA CONSEGNA',        items: availableItems },
+    { key: 'COMING_SOON' as Availability, label: 'PRE-ORDINE (IN ARRIVO)', items: preOrderItems },
+  ].filter(g => g.items.length > 0);
 
   async function handleCheckout() {
     if (belowMin && !acceptShipping) { setError('Accetta le spese di consegna per procedere.'); return; }
