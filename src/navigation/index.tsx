@@ -7,6 +7,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { COLORS }                    from '@/constants';
 import { useAuth }                   from '@/context/AuthContext';
 import { useCart }                   from '@/context/CartContext';
+import { useI18n }                   from '@/i18n/I18nContext';
 
 // Screens
 import LoginScreen          from '@/screens/auth/LoginScreen';
@@ -49,6 +50,7 @@ function CartTabIcon({ color, size }: { color: string; size: number }) {
 }
 
 function MainTabs() {
+  const { t } = useI18n();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -57,13 +59,16 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: COLORS.surface,
           borderTopColor:  COLORS.border,
-          paddingBottom:   12,
-          paddingTop:      6,
-          height:          82,
+          paddingTop:      8,
+          paddingBottom:   20,
+          height:          88,
         },
         tabBarLabelStyle: {
-          marginTop: -8,
-          fontSize:  11,
+          fontSize: 11,
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
         },
         headerStyle:      { backgroundColor: COLORS.surface },
         headerTintColor:  COLORS.primary,
@@ -75,7 +80,7 @@ function MainTabs() {
         component={CatalogScreen}
         options={{
           tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
-          tabBarLabel: 'Catalogo',
+          tabBarLabel: t('mobile.tabs.catalog', 'Catalogo'),
           // Il logo e il pulsante "I miei Fornitori" sono gestiti
           // dinamicamente da CatalogScreen via navigation.setOptions
           headerTitle: () => (
@@ -93,7 +98,7 @@ function MainTabs() {
         name="Cart"
         component={CartScreen}
         options={{
-          title: 'Carrello',
+          title: t('mobile.tabs.cart', 'Carrello'),
           tabBarIcon: (props) => <CartTabIcon {...props} />,
         }}
       />
@@ -101,7 +106,7 @@ function MainTabs() {
         name="Orders"
         component={OrdersScreen}
         options={{
-          title: 'Ordini',
+          title: t('mobile.tabs.orders', 'Ordini'),
           tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
         }}
       />
@@ -109,7 +114,7 @@ function MainTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          title: 'Profilo',
+          title: t('mobile.tabs.profile', 'Profilo'),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />

@@ -30,9 +30,13 @@ export async function getCatalog(
 export async function getProduct(
   supplierId: string,
   productId: string,
-): Promise<Product> {
-  const { data } = await apiClient.get<{ product: Product }>('/catalog', {
-    params: { supplierId, productId },
-  });
-  return data.product;
+): Promise<{ product: Product; catalogDiscountPercent: number }> {
+  const { data } = await apiClient.get<{ product: Product; catalogDiscountPercent?: number }>(
+    '/catalog',
+    { params: { supplierId, productId } },
+  );
+  return {
+    product: data.product,
+    catalogDiscountPercent: data.catalogDiscountPercent ?? 0,
+  };
 }

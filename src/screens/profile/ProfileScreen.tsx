@@ -4,19 +4,14 @@ import {
 } from 'react-native';
 import { Ionicons }  from '@expo/vector-icons';
 import { useAuth }   from '@/context/AuthContext';
+import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 
-const LANGUAGES = [
+const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
   { code: 'fr', label: 'Français', flag: '🇫🇷' },
   { code: 'de', label: 'Deutsch',  flag: '🇩🇪' },
   { code: 'en', label: 'English',  flag: '🇬🇧' },
-];
-
-const AVAIL_LEGEND = [
-  { color: '#22c55e', label: 'Disponibile',          sub: 'Pronta consegna' },
-  { color: '#f59e0b', label: 'In Arrivo / Pre-ordine', sub: 'Riassortimento o arrivo previsto' },
-  { color: '#ef4444', label: 'Su Ordinazione',        sub: 'Tempi di attesa variabili' },
 ];
 
 type IoniconsName = keyof typeof Ionicons.glyphMap;
@@ -34,27 +29,36 @@ function InfoRow({ icon, label, value }: { icon: IoniconsName; label: string; va
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
-  const [loggingOut,   setLoggingOut]   = useState(false);
-  const [activeLang,   setActiveLang]   = useState('it');
+  const { lang, setLang, t } = useI18n();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   function confirmLogout() {
     Alert.alert(
-      "Esci dall'account",
-      'Sei sicuro di voler uscire?',
+      t('mobile.profile.logoutConfirmTitle', "Esci dall'account"),
+      t('mobile.profile.logoutConfirmMsg', 'Sei sicuro di voler uscire?'),
       [
-        { text: 'Annulla', style: 'cancel' },
-        { text: 'Esci', style: 'destructive', onPress: async () => { setLoggingOut(true); await logout(); } },
+        { text: t('mobile.profile.cancel', 'Annulla'), style: 'cancel' },
+        {
+          text: t('mobile.profile.confirmLogout', 'Esci'),
+          style: 'destructive',
+          onPress: async () => { setLoggingOut(true); await logout(); },
+        },
       ]
     );
   }
 
-  const roleLabels: Record<string, string> = {
-    CUSTOMER: 'Cliente', SUPPLIER: 'Fornitore',
-    ADMIN: 'Amministratore', SUPER_ADMIN: 'Super Admin',
-  };
-
   const initials = (user?.name ?? user?.email ?? 'U')
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+
+  const roleLabel = user?.role
+    ? t(`mobile.profile.role.${user.role}`, user.role)
+    : '';
+
+  const AVAIL_LEGEND = [
+    { color: '#22c55e', label: t('mobile.profile.available', 'Disponibile'),     sub: t('mobile.profile.availableSub', 'Pronta consegna') },
+    { color: '#f59e0b', label: t('mobile.profile.coming', 'In Arrivo / Pre-ordine'), sub: t('mobile.profile.comingSub', 'Riassortimento o arrivo previsto') },
+    { color: '#ef4444', label: t('mobile.profile.onOrder', 'Su Ordinazione'),    sub: t('mobile.profile.onOrderSub', "Tempi di attesa variabili") },
+  ];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -66,38 +70,38 @@ export default function ProfileScreen() {
         </View>
         <Text style={styles.userName}>{user?.name ?? user?.email}</Text>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{roleLabels[user?.role ?? ''] ?? user?.role}</Text>
+          <Text style={styles.roleText}>{roleLabel}</Text>
         </View>
       </View>
 
       {/* ── Account ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Account</Text>
-        <InfoRow icon="mail-outline"        label="Email"   value={user?.email ?? ''} />
+        <Text style={styles.cardTitle}>{t('mobile.profile.account', 'Account')}</Text>
+        <InfoRow icon="mail-outline"        label={t('mobile.profile.email', 'Email')}   value={user?.email ?? ''} />
         {user?.customerName && (
-          <InfoRow icon="business-outline"  label="Azienda" value={user.customerName} />
+          <InfoRow icon="business-outline"  label={t('mobile.profile.company', 'Azienda')} value={user.customerName} />
         )}
         {user?.supplierSlug && (
-          <InfoRow icon="storefront-outline" label="Shop"   value={user.supplierSlug} />
+          <InfoRow icon="storefront-outline" label={t('mobile.profile.shop', 'Shop')}     value={user.supplierSlug} />
         )}
       </View>
 
       {/* ── Lingua ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Lingua</Text>
+        <Text style={styles.cardTitle}>{t('mobile.profile.language', 'Lingua')}</Text>
         <View style={styles.langGrid}>
-          {LANGUAGES.map(lang => (
+          {LANGUAGES.map(l => (
             <TouchableOpacity
-              key={lang.code}
-              style={[styles.langChip, activeLang === lang.code && styles.langChipActive]}
-              onPress={() => setActiveLang(lang.code)}
+              key={l.code}
+              style={[styles.langChip, lang === l.code && styles.langChipActive]}
+              onPress={() => setLang(l.code)}
               activeOpacity={0.75}
             >
-              <Text style={styles.langFlag}>{lang.flag}</Text>
-              <Text style={[styles.langLabel, activeLang === lang.code && styles.langLabelActive]}>
-                {lang.label}
+              <Text style={styles.langFlag}>{l.flag}</Text>
+              <Text style={[styles.langLabel, lang === l.code && styles.langLabelActive]}>
+                {l.label}
               </Text>
-              {activeLang === lang.code && (
+              {lang === l.code && (
                 <Ionicons name="checkmark-circle" size={15} color={COLORS.accent} />
               )}
             </TouchableOpacity>
@@ -107,7 +111,7 @@ export default function ProfileScreen() {
 
       {/* ── Legenda disponibilità ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Legenda Disponibilità</Text>
+        <Text style={styles.cardTitle}>{t('mobile.profile.availabilityLegend', 'Legenda Disponibilità')}</Text>
         {AVAIL_LEGEND.map(item => (
           <View key={item.color} style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: item.color }]} />
@@ -121,9 +125,17 @@ export default function ProfileScreen() {
 
       {/* ── Informazioni app ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Informazioni</Text>
-        <InfoRow icon="information-circle-outline" label="Versione app" value="1.0.0" />
-        <InfoRow icon="server-outline" label="Ambiente" value={__DEV__ ? 'Sviluppo' : 'Produzione'} />
+        <Text style={styles.cardTitle}>{t('mobile.profile.info', 'Informazioni')}</Text>
+        <InfoRow
+          icon="information-circle-outline"
+          label={t('mobile.profile.version', 'Versione app')}
+          value="1.0.0"
+        />
+        <InfoRow
+          icon="server-outline"
+          label={t('mobile.profile.environment', 'Ambiente')}
+          value={__DEV__ ? t('mobile.profile.dev', 'Sviluppo') : t('mobile.profile.prod', 'Produzione')}
+        />
       </View>
 
       {/* ── Logout ── */}
@@ -134,7 +146,7 @@ export default function ProfileScreen() {
         activeOpacity={0.8}
       >
         <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-        <Text style={styles.logoutText}>Esci dall'account</Text>
+        <Text style={styles.logoutText}>{t('mobile.profile.logout', "Esci dall'account")}</Text>
       </TouchableOpacity>
 
     </ScrollView>

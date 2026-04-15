@@ -74,6 +74,8 @@ export interface Cart {
   items:          CartItem[];
   totalCents:     number;
   deliveryRules?: DeliveryRule[];
+  discountPercent?:        number;  // sconto applicato sul totale ordine (0-100)
+  catalogDiscountPercent?: number;  // sconto applicato sui prezzi di catalogo (0-100)
 }
 
 export type OrderStatus =
@@ -128,6 +130,8 @@ export interface CatalogResponse {
   products:   Product[];
   total:      number;
   categories: string[];
+  catalogDiscountPercent?: number;  // sconto % applicato sui prezzi di catalogo
+  discountPercent?:        number;  // sconto % applicato a fine ordine
 }
 
 export interface CartResponse {

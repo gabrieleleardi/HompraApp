@@ -7,6 +7,7 @@ import { Ionicons }        from '@expo/vector-icons';
 import { useCart }         from '@/context/CartContext';
 import { checkout }        from '@/api/orders';
 import { getErrorMessage } from '@/api/client';
+import { useI18n }         from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Cart, CartItem, Availability } from '@/types';
 
@@ -94,15 +95,25 @@ function isProductReady(p: CartItem['product'], targetDate: Date): boolean {
 }
 
 // ─── CartItemRow ─────────────────────────────────────────────────────────────
-function CartItemRow({ item, supplierId }: { item: CartItem; supplierId: string }) {
+function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
+  item: CartItem; supplierId: string; catalogDiscountPercent?: number;
+}) {
   const { updateItem } = useCart();
-  const price = item.product.customerPriceCents ?? item.product.priceCents;
+  const { t } = useI18n();
+  const basePrice = item.product.customerPriceCents ?? item.product.priceCents;
+  // Applica sconto catalogo solo se il prodotto non ha prezzo dedicato
+  const hasCatDisc = catalogDiscountPercent > 0 && item.product.customerPriceCents == null;
+  const catDiscAmount = hasCatDisc ? Math.round(basePrice * catalogDiscountPercent / 100) : 0;
+  const price = basePrice - catDiscAmount;
   const subtotal = price * item.quantity;
 
   function handleRemove() {
-    Alert.alert('Rimuovi articolo', `Rimuovere "${item.product.name}" dal carrello?`, [
-      { text: 'Annulla', style: 'cancel' },
-      { text: 'Rimuovi', style: 'destructive', onPress: () => updateItem(item.productId, supplierId, 0) },
+    const title   = t('mobile.cart.removeItem', 'Rimuovi articolo');
+    const confirm = t('mobile.cart.removeConfirm', 'Rimuovere "{{name}}" dal carrello?')
+      .replace('{{name}}', item.product.name);
+    Alert.alert(title, confirm, [
+      { text: t('mobile.cart.cancel', 'Annulla'), style: 'cancel' },
+      { text: t('mobile.cart.remove', 'Rimuovi'), style: 'destructive', onPress: () => updateItem(item.productId, supplierId, 0) },
     ]);
   }
 
@@ -118,7 +129,7 @@ function CartItemRow({ item, supplierId }: { item: CartItem; supplierId: string 
 
         <View style={styles.itemInfo}>
           <Text style={styles.itemName} numberOfLines={3}>{item.product.name}</Text>
-          <Text style={styles.itemCode}>Codice: {item.product.code}</Text>
+          <Text style={styles.itemCode}>{t('mobile.cart.code', 'Codice')}: {item.product.code}</Text>
           <View style={styles.itemPriceRow}>
             <Text style={styles.itemUnitPrice}>
               {fmt(price, item.product.currency)} / {item.product.uom ?? 'PZ'}
@@ -133,7 +144,7 @@ function CartItemRow({ item, supplierId }: { item: CartItem; supplierId: string 
 
         {/* subtotale */}
         <View style={styles.itemSubtotal}>
-          <Text style={styles.subtotalLabel}>SUBTOTALE</Text>
+          <Text style={styles.subtotalLabel}>{t('mobile.cart.subtotal', 'SUBTOTALE')}</Text>
           <Text style={styles.subtotalValue}>{fmt(subtotal, item.product.currency)}</Text>
         </View>
       </View>
@@ -141,7 +152,7 @@ function CartItemRow({ item, supplierId }: { item: CartItem; supplierId: string 
       {/* Q.TÀ + Rimuovi */}
       <View style={styles.itemBottom}>
         <View style={styles.qtyRow}>
-          <Text style={styles.qtyLabel}>Q.TÀ</Text>
+          <Text style={styles.qtyLabel}>{t('mobile.cart.qty', 'Q.TÀ')}</Text>
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => updateItem(item.productId, supplierId, Math.max(0, item.quantity - 1))}
@@ -160,7 +171,7 @@ function CartItemRow({ item, supplierId }: { item: CartItem; supplierId: string 
         <View style={{ flex: 1 }} />
 
         <TouchableOpacity style={styles.removeBtn} onPress={handleRemove}>
-          <Text style={styles.removeBtnText}>Rimuovi</Text>
+          <Text style={styles.removeBtnText}>{t('mobile.cart.remove', 'Rimuovi')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -182,6 +193,9 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }
   onDismiss:      () => void;
   deliveryRules?: { weekday: string; cutoffDay?: string | null; cutoffTime?: string | null; cutoffDaysBefore?: number | null }[];
 }) {
+  const { t, dict } = useI18n();
+  const MONTHS = (dict?.mobile?.cart?.datePicker?.months as string[]) || MONTHS_IT;
+  const DAYS   = (dict?.mobile?.cart?.datePicker?.daysHdr as string[]) || DAYS_HDR;
   const today = new Date();
   const [cursor, setCursor] = useState(() => value ?? today);
   const [selected, setSelected] = useState<Date | null>(value);
@@ -252,7 +266,7 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }
       <View style={dpStyles.sheet}>
         {/* Title */}
         <View style={dpStyles.sheetHeader}>
-          <Text style={dpStyles.sheetTitle}>Data di Consegna</Text>
+          <Text style={dpStyles.sheetTitle}>{t('mobile.cart.datePicker.title', 'Data di Consegna')}</Text>
           <TouchableOpacity onPress={onDismiss}>
             <Ionicons name="close" size={22} color={COLORS.textSecondary} />
           </TouchableOpacity>
@@ -263,7 +277,7 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }
           <TouchableOpacity style={dpStyles.navBtn} onPress={prevMonth}>
             <Ionicons name="chevron-back" size={18} color={COLORS.primary} />
           </TouchableOpacity>
-          <Text style={dpStyles.monthLabel}>{MONTHS_IT[month]} {year}</Text>
+          <Text style={dpStyles.monthLabel}>{MONTHS[month]} {year}</Text>
           <TouchableOpacity style={dpStyles.navBtn} onPress={nextMonth}>
             <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
           </TouchableOpacity>
@@ -271,7 +285,7 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }
 
         {/* Day-of-week headers */}
         <View style={dpStyles.dowRow}>
-          {DAYS_HDR.map(d => <Text key={d} style={dpStyles.dowCell}>{d}</Text>)}
+          {DAYS.map((d, i) => <Text key={`${d}-${i}`} style={dpStyles.dowCell}>{d}</Text>)}
         </View>
 
         {/* Day cells */}
@@ -303,8 +317,8 @@ function DatePickerModal({ visible, value, onConfirm, onDismiss, deliveryRules }
         >
           <Text style={dpStyles.confirmBtnText}>
             {selected
-              ? `Conferma – ${selected.getDate().toString().padStart(2,'0')}/${(selected.getMonth()+1).toString().padStart(2,'0')}/${selected.getFullYear()}`
-              : 'Seleziona una data'}
+              ? `${t('mobile.cart.datePicker.confirm', 'Conferma')} – ${selected.getDate().toString().padStart(2,'0')}/${(selected.getMonth()+1).toString().padStart(2,'0')}/${selected.getFullYear()}`
+              : t('mobile.cart.datePicker.selectDate', 'Seleziona una data')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -344,11 +358,12 @@ const dpStyles = StyleSheet.create({
 // ─── CartCard ────────────────────────────────────────────────────────────────
 function CartCard({ cart }: { cart: Cart }) {
   const { clearSupplierCart, fetchCarts } = useCart();
+  const { t } = useI18n();
 
   // Checkout state
   const [deliveryDate,    setDeliveryDate]    = useState<Date | null>(null);
   const [showDatePicker,  setShowDatePicker]  = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState('Sede Principale');
+  const [deliveryAddress, setDeliveryAddress] = useState(t('mobile.cart.mainAddress', 'Sede Principale'));
   const [orderNote,       setOrderNote]       = useState('');
   const [acceptShipping,  setAcceptShipping]  = useState(false);
   const [loading,         setLoading]         = useState(false);
@@ -359,15 +374,35 @@ function CartCard({ cart }: { cart: Cart }) {
     ? `${deliveryDate.getDate().toString().padStart(2,'0')}/${(deliveryDate.getMonth()+1).toString().padStart(2,'0')}/${deliveryDate.getFullYear()}`
     : '';
 
+  // Sconti applicati per questo cliente su questo fornitore
+  const catalogDiscountPercent = cart.catalogDiscountPercent ?? 0;
+  const discountPercent        = cart.discountPercent        ?? 0;
+
+  // Ricalcola il netto partendo dai prezzi dei singoli items,
+  // applicando lo sconto catalogo (solo su prodotti senza prezzo dedicato).
+  const netto = cart.items.reduce((sum, item) => {
+    const basePrice = item.product.customerPriceCents ?? item.product.priceCents;
+    const hasCatDisc = catalogDiscountPercent > 0 && item.product.customerPriceCents == null;
+    const itemPrice = hasCatDisc
+      ? basePrice - Math.round(basePrice * catalogDiscountPercent / 100)
+      : basePrice;
+    return sum + itemPrice * item.quantity;
+  }, 0);
+
+  // Sconto ordine (% sul netto)
+  const discountAmount = discountPercent > 0
+    ? Math.round(netto * discountPercent / 100)
+    : 0;
+  const nettoAfterDiscount = netto - discountAmount;
+
   // Calcoli (mock IVA 2.6%, shipping CHF 10 se sotto minimo)
   const MIN_ORDER   = 10000; // 100.00 CHF in cents
   const SHIPPING    = 1000;  // 10.00 CHF
-  const netto       = cart.totalCents;
   const ivaRate     = 0.026;
-  const iva         = Math.round(netto * ivaRate);
-  const belowMin    = netto < MIN_ORDER;
+  const iva         = Math.round(nettoAfterDiscount * ivaRate);
+  const belowMin    = nettoAfterDiscount < MIN_ORDER;
   const shipping    = belowMin ? SHIPPING : 0;
-  const total       = netto + iva + shipping;
+  const total       = nettoAfterDiscount + iva + shipping;
 
   // Raggruppamento in 2 gruppi (identico al sito web):
   // PRONTA CONSEGNA = prodotti disponibili alla data selezionata
@@ -383,12 +418,12 @@ function CartCard({ cart }: { cart: Cart }) {
   }
 
   const grouped = [
-    { key: 'AVAILABLE' as Availability, label: 'PRONTA CONSEGNA',        items: availableItems },
-    { key: 'COMING_SOON' as Availability, label: 'PRE-ORDINE (IN ARRIVO)', items: preOrderItems },
+    { key: 'AVAILABLE' as Availability,   label: t('mobile.cart.readyDelivery', 'PRONTA CONSEGNA'),        items: availableItems },
+    { key: 'COMING_SOON' as Availability, label: t('mobile.cart.preOrder',      'PRE-ORDINE (IN ARRIVO)'), items: preOrderItems },
   ].filter(g => g.items.length > 0);
 
   async function handleCheckout() {
-    if (belowMin && !acceptShipping) { setError('Accetta le spese di consegna per procedere.'); return; }
+    if (belowMin && !acceptShipping) { setError(t('mobile.cart.acceptShippingErr', 'Accetta le spese di consegna per procedere.')); return; }
     setLoading(true); setError('');
     try {
       await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateStr || undefined });
@@ -403,7 +438,7 @@ function CartCard({ cart }: { cart: Cart }) {
       <View style={[styles.card, { alignItems: 'center', padding: SPACING.xl, gap: SPACING.sm }]}>
         <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
         <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.success }}>
-          Ordine inviato a {cart.supplier.name}!
+          {t('mobile.cart.orderSent', 'Ordine inviato a')} {cart.supplier.name}!
         </Text>
       </View>
     );
@@ -427,14 +462,17 @@ function CartCard({ cart }: { cart: Cart }) {
           )}
           <Text style={styles.supplierName}>{cart.supplier.name}</Text>
         </View>
-        <TouchableOpacity style={styles.svuotaBtn} onPress={() =>
-          Alert.alert('Svuota carrello', `Rimuovere tutti gli articoli da ${cart.supplier.name}?`, [
-            { text: 'Annulla', style: 'cancel' },
-            { text: 'Svuota', style: 'destructive', onPress: () => clearSupplierCart(cart.supplierId) },
-          ])
-        }>
+        <TouchableOpacity style={styles.svuotaBtn} onPress={() => {
+          const title = t('mobile.cart.clearCartTitle', 'Svuota carrello');
+          const msg   = t('mobile.cart.clearCartMsg', 'Rimuovere tutti gli articoli da {{supplier}}?')
+            .replace('{{supplier}}', cart.supplier.name);
+          Alert.alert(title, msg, [
+            { text: t('mobile.cart.cancel', 'Annulla'), style: 'cancel' },
+            { text: t('mobile.cart.clear',  'Svuota'), style: 'destructive', onPress: () => clearSupplierCart(cart.supplierId) },
+          ]);
+        }}>
           <Ionicons name="trash-outline" size={14} color={COLORS.error} />
-          <Text style={styles.svuotaText}>Svuota Carrello</Text>
+          <Text style={styles.svuotaText}>{t('mobile.cart.emptyCart', 'Svuota Carrello')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -446,7 +484,12 @@ function CartCard({ cart }: { cart: Cart }) {
             <Text style={styles.groupLabel}>{group.label}</Text>
           </View>
           {group.items.map(item => (
-            <CartItemRow key={item.id} item={item} supplierId={cart.supplierId} />
+            <CartItemRow
+              key={item.id}
+              item={item}
+              supplierId={cart.supplierId}
+              catalogDiscountPercent={cart.catalogDiscountPercent ?? 0}
+            />
           ))}
         </View>
       ))}
@@ -454,12 +497,26 @@ function CartCard({ cart }: { cart: Cart }) {
       {/* ── Riepilogo importi ── */}
       <View style={styles.summarySection}>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Totale Merce (Netto):</Text>
+          <Text style={styles.summaryLabel}>{t('mobile.cart.netTotal', 'Totale Merce (Netto):')}</Text>
           <Text style={styles.summaryValue}>{fmt(netto)}</Text>
         </View>
+        {discountPercent > 0 && (
+          <View style={styles.summaryRow}>
+            <View style={styles.discountBadgeCart}>
+              <Text style={styles.discountBadgeCartText}>
+                {t('mobile.cart.discountLabel', 'Sconto {{pct}}%').replace('{{pct}}', String(discountPercent))}
+              </Text>
+            </View>
+            <Text style={[styles.summaryValue, { color: COLORS.success }]}>− {fmt(discountAmount)}</Text>
+          </View>
+        )}
         <View style={styles.summaryRow}>
           <View style={styles.ivaBadge}>
-            <Text style={styles.ivaText}>IVA 2.6% (su {fmt(netto)})</Text>
+            <Text style={styles.ivaText}>
+              {t('mobile.cart.ivaLabel', 'IVA {{rate}}% (su {{net}})')
+                .replace('{{rate}}', '2.6')
+                .replace('{{net}}', fmt(nettoAfterDiscount))}
+            </Text>
           </View>
           <Text style={styles.summaryValue}>+ {fmt(iva)}</Text>
         </View>
@@ -467,38 +524,38 @@ function CartCard({ cart }: { cart: Cart }) {
           <View style={styles.summaryRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="car-outline" size={13} color={COLORS.error} />
-              <Text style={[styles.summaryLabel, { color: COLORS.error }]}>Spese Consegna:</Text>
+              <Text style={[styles.summaryLabel, { color: COLORS.error }]}>{t('mobile.cart.shippingCost', 'Spese Consegna:')}</Text>
             </View>
             <Text style={[styles.summaryValue, { color: COLORS.error }]}>{fmt(shipping)}</Text>
           </View>
         )}
         <View style={[styles.summaryRow, { marginTop: 4 }]}>
-          <Text style={styles.totalLabel}>Totale Ordine</Text>
+          <Text style={styles.totalLabel}>{t('mobile.cart.orderTotal', 'Totale Ordine')}</Text>
           <Text style={styles.totalValue}>{fmt(total)}</Text>
         </View>
       </View>
 
       {/* ── Sede di consegna ── */}
       <View style={styles.checkoutSection}>
-        <Text style={styles.checkoutSectionLabel}>SEDE DI CONSEGNA</Text>
+        <Text style={styles.checkoutSectionLabel}>{t('mobile.cart.deliveryAddress', 'SEDE DI CONSEGNA')}</Text>
         <TouchableOpacity style={styles.selectRow}>
           <Text style={styles.selectValue}>{deliveryAddress}</Text>
           <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
-        <Text style={[styles.checkoutSectionLabel, { marginTop: SPACING.md }]}>DATA DI CONSEGNA RICHIESTA</Text>
+        <Text style={[styles.checkoutSectionLabel, { marginTop: SPACING.md }]}>{t('mobile.cart.deliveryDate', 'DATA DI CONSEGNA RICHIESTA')}</Text>
         <TouchableOpacity style={styles.selectRow} onPress={() => setShowDatePicker(true)}>
           <Ionicons name="calendar-outline" size={16} color={deliveryDate ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.selectValue, !deliveryDate && { color: COLORS.textSecondary }]}>
-            {deliveryDateStr || 'Seleziona data di consegna'}
+            {deliveryDateStr || t('mobile.cart.selectDate', 'Seleziona data di consegna')}
           </Text>
           <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
-        <Text style={[styles.checkoutSectionLabel, { marginTop: SPACING.md }]}>NOTE ORDINE</Text>
+        <Text style={[styles.checkoutSectionLabel, { marginTop: SPACING.md }]}>{t('mobile.cart.orderNotes', 'NOTE ORDINE')}</Text>
         <TextInput
           style={styles.orderNoteInput}
-          placeholder="Note per il fornitore..."
+          placeholder={t('mobile.cart.notesPh', 'Note per il fornitore...')}
           placeholderTextColor={COLORS.textSecondary}
           value={orderNote}
           onChangeText={setOrderNote}
@@ -511,8 +568,8 @@ function CartCard({ cart }: { cart: Cart }) {
       {belowMin && (
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
-            Minimo d'ordine: <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER)}</Text>.{'\n'}
-            Mancano <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER - netto)}</Text> per la spedizione gratuita.
+            {t('mobile.cart.minOrder', "Minimo d'ordine:")} <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER)}</Text>.{'\n'}
+            {t('mobile.cart.missing', 'Mancano')} <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER - netto)}</Text> {t('mobile.cart.forFreeShipping', 'per la spedizione gratuita.')}
           </Text>
           <View style={styles.acceptRow}>
             <Switch
@@ -522,7 +579,7 @@ function CartCard({ cart }: { cart: Cart }) {
               thumbColor={acceptShipping ? '#fff' : '#f4f4f4'}
             />
             <Text style={styles.acceptText}>
-              Accetto l'addebito di <Text style={{ fontWeight: '700' }}>{fmt(SHIPPING)}</Text> per le spese di consegna e confermo l'invio dell'ordine.
+              {t('mobile.cart.acceptShipping1', "Accetto l'addebito di")} <Text style={{ fontWeight: '700' }}>{fmt(SHIPPING)}</Text> {t('mobile.cart.acceptShipping2', "per le spese di consegna e confermo l'invio dell'ordine.")}
             </Text>
           </View>
         </View>
@@ -545,7 +602,9 @@ function CartCard({ cart }: { cart: Cart }) {
           {loading
             ? <ActivityIndicator color="#fff" />
             : <Text style={styles.submitBtnText}>
-                {belowMin && !acceptShipping ? 'Accetta le spese per procedere' : 'Invia Ordine'}
+                {belowMin && !acceptShipping
+                  ? t('mobile.cart.acceptShippingBtn', 'Accetta le spese per procedere')
+                  : t('mobile.cart.submitOrder', 'Invia Ordine')}
               </Text>
           }
         </TouchableOpacity>
@@ -566,6 +625,7 @@ function CartCard({ cart }: { cart: Cart }) {
 // ─── CartScreen ──────────────────────────────────────────────────────────────
 export default function CartScreen() {
   const { carts, isLoading, fetchCarts } = useCart();
+  const { t } = useI18n();
 
   useEffect(() => { fetchCarts(); }, [fetchCarts]);
 
@@ -582,8 +642,8 @@ export default function CartScreen() {
       {carts.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="cart-outline" size={64} color={COLORS.border} />
-          <Text style={styles.emptyTitle}>Carrello vuoto</Text>
-          <Text style={styles.emptySubtitle}>Aggiungi prodotti dal catalogo</Text>
+          <Text style={styles.emptyTitle}>{t('mobile.cart.empty', 'Carrello vuoto')}</Text>
+          <Text style={styles.emptySubtitle}>{t('mobile.cart.emptySub', 'Aggiungi prodotti dal catalogo')}</Text>
         </View>
       ) : (
         carts.map(cart => <CartCard key={cart.id} cart={cart} />)
@@ -679,6 +739,8 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 13, color: COLORS.textSecondary },
   summaryValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   ivaBadge:     { backgroundColor: `${COLORS.border}88`, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 },
+  discountBadgeCart:     { backgroundColor: `${COLORS.success}22`, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  discountBadgeCartText: { color: COLORS.success, fontSize: 12, fontWeight: '700' },
   ivaText:      { fontSize: 11, color: COLORS.textSecondary, fontWeight: '500' },
   totalLabel:   { fontSize: 14, fontWeight: '700', color: COLORS.text },
   totalValue:   { fontSize: 22, fontWeight: '900', color: COLORS.primary, letterSpacing: -0.5 },

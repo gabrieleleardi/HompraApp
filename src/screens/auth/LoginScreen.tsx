@@ -7,6 +7,7 @@ import {
 import { Ionicons }            from '@expo/vector-icons';
 import * as SecureStore        from 'expo-secure-store';
 import { useAuth }             from '@/context/AuthContext';
+import { useI18n }             from '@/i18n/I18nContext';
 import { getErrorMessage }     from '@/api/client';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 
@@ -34,6 +35,7 @@ const PASSWORD_RESET_URL = `https://www.hompra.com/${LANG}/password-recovery`;
 
 export default function LoginScreen() {
   const { login }     = useAuth();
+  const { t }         = useI18n();
   const [email,     setEmail]     = useState('');
   const [password,  setPassword]  = useState('');
   const [remember,  setRemember]  = useState(false);
@@ -59,7 +61,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
-      setError('Inserisci email e password.');
+      setError(t('mobile.login.emptyFields', 'Inserisci email e password.'));
       return;
     }
     setError('');
@@ -83,7 +85,7 @@ export default function LoginScreen() {
   }
 
   function openUrl(url: string) {
-    Linking.openURL(url).catch(() => setError('Impossibile aprire il link.'));
+    Linking.openURL(url).catch(() => setError(t('mobile.login.linkError', 'Impossibile aprire il link.')));
   }
 
   return (
@@ -102,12 +104,12 @@ export default function LoginScreen() {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.tagline}>Ordina in modo semplice</Text>
+          <Text style={styles.tagline}>{t('mobile.tagline', 'Ordina in modo semplice')}</Text>
         </View>
 
         {/* Form */}
         <View style={styles.card}>
-          <Text style={styles.title}>Accedi</Text>
+          <Text style={styles.title}>{t('mobile.login.title', 'Accedi')}</Text>
 
           {!!error && (
             <View style={styles.errorBox}>
@@ -115,10 +117,10 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('mobile.login.email', 'Email')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="nome@azienda.com"
+            placeholder={t('mobile.login.emailPh', 'nome@azienda.com')}
             placeholderTextColor={COLORS.textSecondary}
             value={email}
             onChangeText={setEmail}
@@ -129,7 +131,7 @@ export default function LoginScreen() {
             editable={!loading}
           />
 
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('mobile.login.password', 'Password')}</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
@@ -153,7 +155,7 @@ export default function LoginScreen() {
               <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
                 {remember && <Ionicons name="checkmark" size={14} color={COLORS.white} />}
               </View>
-              <Text style={styles.rememberText}>Ricorda dati</Text>
+              <Text style={styles.rememberText}>{t('mobile.login.remember', 'Ricorda dati')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -161,7 +163,7 @@ export default function LoginScreen() {
               disabled={loading}
               activeOpacity={0.7}
             >
-              <Text style={styles.linkText}>Password dimenticata?</Text>
+              <Text style={styles.linkText}>{t('mobile.login.forgotPassword', 'Password dimenticata?')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -173,7 +175,7 @@ export default function LoginScreen() {
           >
             {loading
               ? <ActivityIndicator color={COLORS.white} />
-              : <Text style={styles.buttonText}>Accedi</Text>
+              : <Text style={styles.buttonText}>{t('mobile.login.loginBtn', 'Accedi')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -185,7 +187,7 @@ export default function LoginScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="globe-outline" size={16} color={COLORS.accent} />
-          <Text style={styles.websiteLinkText}>Visualizza la pagina web</Text>
+          <Text style={styles.websiteLinkText}>{t('mobile.login.websiteLink', 'Visualizza la pagina web')}</Text>
         </TouchableOpacity>
 
         <Text style={styles.footer}>

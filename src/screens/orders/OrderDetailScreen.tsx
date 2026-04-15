@@ -5,32 +5,36 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getOrder }  from '@/api/orders';
+import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Order } from '@/types';
 import type { RootStackParamList } from '@/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
+const LOCALE_MAP: Record<Lang, string> = { it: 'it-IT', fr: 'fr-CH', de: 'de-CH', en: 'en-GB' };
+
 function formatPrice(cents: number, currency = 'CHF') {
   return `${currency} ${(cents / 100).toFixed(2)}`;
 }
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function formatDate(iso: string, lang: Lang) {
+  return new Date(iso).toLocaleString(LOCALE_MAP[lang] ?? 'it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 type IoniconsName = keyof typeof Ionicons.glyphMap;
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: IoniconsName }> = {
-  PENDING:   { label: 'In attesa',   color: '#d97706', icon: 'time-outline' },
-  CONFIRMED: { label: 'Confermato',  color: COLORS.success, icon: 'checkmark-circle-outline' },
-  SHIPPED:   { label: 'Spedito',     color: '#4338ca', icon: 'bicycle-outline' },
-  DELIVERED: { label: 'Consegnato',  color: COLORS.primary, icon: 'checkmark-done-outline' },
-  CANCELLED: { label: 'Annullato',   color: COLORS.textSecondary, icon: 'close-circle-outline' },
-  DRAFT:     { label: 'Bozza',       color: COLORS.textSecondary, icon: 'document-outline' },
-  PRE_ORDER: { label: 'Pre-ordine',  color: COLORS.accent, icon: 'calendar-outline' },
+const STATUS_VISUAL: Record<string, { color: string; icon: IoniconsName }> = {
+  PENDING:   { color: '#d97706',           icon: 'time-outline'            },
+  CONFIRMED: { color: COLORS.success,       icon: 'checkmark-circle-outline' },
+  SHIPPED:   { color: '#4338ca',           icon: 'bicycle-outline'         },
+  DELIVERED: { color: COLORS.primary,       icon: 'checkmark-done-outline'  },
+  CANCELLED: { color: COLORS.textSecondary, icon: 'close-circle-outline'    },
+  DRAFT:     { color: COLORS.textSecondary, icon: 'document-outline'        },
+  PRE_ORDER: { color: COLORS.accent,        icon: 'calendar-outline'        },
 };
 
 export default function OrderDetailScreen({ route }: Props) {
   const { orderId } = route.params;
+  const { lang, t }  = useI18n();
   const [order,   setOrder]   = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -41,24 +45,25 @@ export default function OrderDetailScreen({ route }: Props) {
         const data = await getOrder(orderId);
         setOrder(data);
       } catch (e) {
-        setError((e as any)?.response?.data?.error ?? 'Errore caricamento ordine.');
+        setError((e as any)?.response?.data?.error ?? t('mobile.orders.loadErrorDetail', 'Errore caricamento ordine.'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [orderId]);
+  }, [orderId, t]);
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />;
 
   if (error || !order) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>{error || 'Ordine non trovato.'}</Text>
+        <Text style={styles.errorText}>{error || t('mobile.orders.notFound', 'Ordine non trovato.')}</Text>
       </View>
     );
   }
 
-  const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: COLORS.textSecondary, icon: 'help-outline' as IoniconsName };
+  const visual = STATUS_VISUAL[order.status] ?? { color: COLORS.textSecondary, icon: 'help-outline' as IoniconsName };
+  const label  = t(`mobile.orders.status.${order.status}`, order.status);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -66,19 +71,19 @@ export default function OrderDetailScreen({ route }: Props) {
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
           <Text style={styles.supplierName}>{order.supplier.name}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: `${status.color}22` }]}>
-            <Ionicons name={status.icon} size={14} color={status.color} />
-            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: `${visual.color}22` }]}>
+            <Ionicons name={visual.icon} size={14} color={visual.color} />
+            <Text style={[styles.statusText, { color: visual.color }]}>{label}</Text>
           </View>
         </View>
 
         {order.publicCode && <Text style={styles.orderCode}># {order.publicCode}</Text>}
-        <Text style={styles.date}>{formatDate(order.createdAt)}</Text>
+        <Text style={styles.date}>{formatDate(order.createdAt, lang)}</Text>
 
         {order.deliveryDateText && (
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>Consegna: {order.deliveryDateText}</Text>
+            <Text style={styles.infoText}>{t('mobile.orders.delivery', 'Consegna')}: {order.deliveryDateText}</Text>
           </View>
         )}
         {order.notes && (
@@ -89,7 +94,7 @@ export default function OrderDetailScreen({ route }: Props) {
       </View>
 
       {/* Articoli */}
-      <Text style={styles.sectionTitle}>Articoli ({order.items.length})</Text>
+      <Text style={styles.sectionTitle}>{t('mobile.orders.articles', 'Articoli')} ({order.items.length})</Text>
       <View style={styles.itemsCard}>
         {order.items.map((item, idx) => (
           <View key={item.id} style={[styles.itemRow, idx < order.items.length - 1 && styles.itemBorder]}>
@@ -108,7 +113,7 @@ export default function OrderDetailScreen({ route }: Props) {
 
       {/* Totale */}
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Totale ordine</Text>
+        <Text style={styles.totalLabel}>{t('mobile.orders.orderTotal', 'Totale ordine')}</Text>
         <Text style={styles.totalAmount}>{formatPrice(order.totalCents, order.currency)}</Text>
       </View>
     </ScrollView>

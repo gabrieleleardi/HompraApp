@@ -42,15 +42,22 @@ function formatPrice(cents: number, currency = 'CHF') {
 
 // ─── ProductRow ──────────────────────────────────────────────────────────────
 function ProductRow({
-  product, supplierId, onPress,
+  product, supplierId, onPress, catalogDiscountPercent = 0,
 }: {
   product: Product; supplierId: string; onPress: () => void;
+  catalogDiscountPercent?: number;
 }) {
   const { carts, updateItem } = useCart();
   const cart     = carts.find(c => c.supplierId === supplierId);
   const cartItem = cart?.items.find(i => i.productId === product.id);
   const qty      = cartItem?.quantity ?? 0;
-  const price    = product.customerPriceCents ?? product.priceCents;
+  const basePrice = product.customerPriceCents ?? product.priceCents;
+  // Applica lo sconto catalogo solo se il prodotto NON ha già un prezzo dedicato
+  const hasCatalogDiscount = catalogDiscountPercent > 0 && product.customerPriceCents == null;
+  const discountAmount = hasCatalogDiscount
+    ? Math.round(basePrice * catalogDiscountPercent / 100)
+    : 0;
+  const price = basePrice - discountAmount;
   const [localQty, setLocalQty] = useState(qty);
 
   useEffect(() => { setLocalQty(qty); }, [qty]);
@@ -91,7 +98,17 @@ function ProductRow({
           <View style={styles.productCodeBadge}><Text style={styles.productCodeText}>#{product.code}</Text></View>
           {product.uom ? <Text style={styles.productUom}>· {product.uom}</Text> : null}
         </View>
-        <Text style={styles.productPrice}>{formatPrice(price, product.currency)}</Text>
+        {hasCatalogDiscount ? (
+          <View style={styles.priceRow}>
+            <Text style={styles.productPriceOld}>{formatPrice(basePrice, product.currency)}</Text>
+            <Text style={styles.productPriceDisc}>{formatPrice(price, product.currency)}</Text>
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>-{catalogDiscountPercent}%</Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.productPrice}>{formatPrice(price, product.currency)}</Text>
+        )}
       </View>
 
       <View style={styles.qtyControl}>
@@ -134,6 +151,7 @@ export default function CatalogScreen() {
   const [search,               setSearch]               = useState('');
   const [page,                 setPage]                 = useState(1);
   const [total,                setTotal]                = useState(0);
+  const [catalogDiscountPercent, setCatalogDiscountPercent] = useState(0);
   const [loading,              setLoading]              = useState(false);
   const [refreshing,           setRefreshing]           = useState(false);
   const [error,                setError]                = useState('');
@@ -217,6 +235,7 @@ export default function CatalogScreen() {
       });
       setCategories(data.categories);
       setTotal(data.total);
+      setCatalogDiscountPercent(data.catalogDiscountPercent ?? 0);
       if (reset) setPage(1);
       if (reset && activeCategory) {
         const subs = Array.from(new Set(
@@ -474,6 +493,7 @@ export default function CatalogScreen() {
             <ProductRow
               product={item}
               supplierId={activeSupplierId!}
+              catalogDiscountPercent={catalogDiscountPercent}
               onPress={() => navigation.navigate('ProductDetail', { productId: item.id, supplierId: activeSupplierId! })}
             />
           )}
@@ -662,6 +682,11 @@ const styles = StyleSheet.create({
   productCodeText: { fontSize: 10, fontWeight: '600', color: COLORS.textSecondary },
   productUom: { fontSize: 11, color: COLORS.textSecondary },
   productPrice: { fontSize: 15, fontWeight: '700', color: COLORS.primary, marginTop: 4, letterSpacing: -0.3 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  productPriceOld:  { fontSize: 12, color: COLORS.textSecondary, textDecorationLine: 'line-through' },
+  productPriceDisc: { fontSize: 15, fontWeight: '700', color: COLORS.success, letterSpacing: -0.3 },
+  discountBadge:    { backgroundColor: COLORS.success, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  discountBadgeText:{ color: '#fff', fontSize: 10, fontWeight: '800' },
 
   qtyControl: { flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 },
   qtyBtn: { width: 31, height: 31, borderRadius: 16, borderWidth: 1.5, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },

@@ -8,6 +8,7 @@ import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-n
 import { Ionicons }   from '@expo/vector-icons';
 import { getProduct } from '@/api/catalog';
 import { useCart }    from '@/context/CartContext';
+import { useI18n }    from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Product } from '@/types';
 import type { RootStackParamList } from '@/navigation';
@@ -22,9 +23,11 @@ export default function ProductDetailScreen({ route }: Props) {
   const { productId, supplierId } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { carts, updateItem } = useCart();
+  const { t } = useI18n();
 
   const [product,  setProduct]  = useState<Product | null>(null);
   const [loading,  setLoading]  = useState(true);
+  const [catalogDiscountPercent, setCatalogDiscountPercent] = useState(0);
 
   const cart     = carts.find((c) => c.supplierId === supplierId);
   const cartItem = cart?.items.find((i) => i.productId === productId);
@@ -34,8 +37,9 @@ export default function ProductDetailScreen({ route }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const p = await getProduct(supplierId, productId);
+        const { product: p, catalogDiscountPercent: disc } = await getProduct(supplierId, productId);
         setProduct(p);
+        setCatalogDiscountPercent(disc);
       } catch {
         setProduct(null);
       } finally {
@@ -51,20 +55,27 @@ export default function ProductDetailScreen({ route }: Props) {
   if (!product) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Prodotto non trovato.</Text>
+        <Text style={styles.errorText}>{t('mobile.product.notFound', 'Prodotto non trovato.')}</Text>
       </View>
     );
   }
 
-  const price = product.customerPriceCents ?? product.priceCents;
+  const basePrice = product.customerPriceCents ?? product.priceCents;
+  // Applica sconto catalogo solo se non c'è un prezzo dedicato
+  const hasCatalogDiscount = catalogDiscountPercent > 0 && product.customerPriceCents == null;
+  const discountAmount = hasCatalogDiscount ? Math.round(basePrice * catalogDiscountPercent / 100) : 0;
+  const price = basePrice - discountAmount;
 
-  const availabilityMap: Record<string, { label: string; color: string }> = {
-    AVAILABLE:      { label: 'Disponibile',     color: COLORS.success },
-    COMING_SOON:    { label: 'In arrivo',        color: COLORS.warning },
-    ON_ORDER:       { label: 'Su ordinazione',   color: COLORS.warning },
-    WEEKLY_RESTOCK: { label: 'Rifornimento sett.', color: COLORS.accent },
+  const availColorMap: Record<string, string> = {
+    AVAILABLE:      COLORS.success,
+    COMING_SOON:    COLORS.warning,
+    ON_ORDER:       COLORS.warning,
+    WEEKLY_RESTOCK: COLORS.accent,
   };
-  const avail = availabilityMap[product.availability] ?? { label: product.availability, color: COLORS.textSecondary };
+  const avail = {
+    label: t(`mobile.product.availabilityLabels.${product.availability}`, product.availability),
+    color: availColorMap[product.availability] ?? COLORS.textSecondary,
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -78,24 +89,36 @@ export default function ProductDetailScreen({ route }: Props) {
       <View style={styles.body}>
         {/* Badge */}
         <View style={styles.badgeRow}>
-          {product.isNew   && <View style={[styles.badge, { backgroundColor: COLORS.accent }]}><Text style={styles.badgeText}>Nuovo</Text></View>}
-          {product.isPromo && <View style={[styles.badge, { backgroundColor: COLORS.warning }]}><Text style={styles.badgeText}>Promo</Text></View>}
+          {product.isNew   && <View style={[styles.badge, { backgroundColor: COLORS.accent }]}><Text style={styles.badgeText}>{t('mobile.product.new', 'Nuovo')}</Text></View>}
+          {product.isPromo && <View style={[styles.badge, { backgroundColor: COLORS.warning }]}><Text style={styles.badgeText}>{t('mobile.product.promo', 'Promo')}</Text></View>}
           <View style={[styles.badge, { backgroundColor: avail.color }]}>
             <Text style={styles.badgeText}>{avail.label}</Text>
           </View>
         </View>
 
         <Text style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productCode}>Cod. {product.code}{product.uom ? ` · ${product.uom}` : ''}</Text>
+        <Text style={styles.productCode}>{t('mobile.cart.code', 'Codice')}. {product.code}{product.uom ? ` · ${product.uom}` : ''}</Text>
 
         {product.category && (
           <Text style={styles.category}>{product.category}{product.subcategory ? ` › ${product.subcategory}` : ''}</Text>
         )}
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatPrice(price, product.currency)}</Text>
-          {product.customerPriceCents && product.customerPriceCents !== product.priceCents && (
-            <Text style={styles.originalPrice}>{formatPrice(product.priceCents, product.currency)}</Text>
+          {hasCatalogDiscount ? (
+            <>
+              <Text style={[styles.price, { color: COLORS.success }]}>{formatPrice(price, product.currency)}</Text>
+              <Text style={styles.originalPrice}>{formatPrice(basePrice, product.currency)}</Text>
+              <View style={styles.catDiscBadge}>
+                <Text style={styles.catDiscBadgeText}>-{catalogDiscountPercent}%</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.price}>{formatPrice(price, product.currency)}</Text>
+              {product.customerPriceCents && product.customerPriceCents !== product.priceCents && (
+                <Text style={styles.originalPrice}>{formatPrice(product.priceCents, product.currency)}</Text>
+              )}
+            </>
           )}
         </View>
 
@@ -108,13 +131,13 @@ export default function ProductDetailScreen({ route }: Props) {
         {product.cutoffTime && (
           <View style={styles.infoRow}>
             <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>Ordine entro le {product.cutoffTime}</Text>
+            <Text style={styles.infoText}>{t('mobile.product.orderBefore', 'Ordine entro le {{time}}').replace('{{time}}', product.cutoffTime)}</Text>
           </View>
         )}
 
         {/* Controllo quantità */}
         <View style={styles.qtySection}>
-          <Text style={styles.qtyLabel}>Quantità</Text>
+          <Text style={styles.qtyLabel}>{t('mobile.product.qty', 'Quantità')}</Text>
           <View style={styles.qtyControl}>
             <TouchableOpacity
               style={[styles.qtyBtn, qty === 0 && styles.qtyBtnDisabled]}
@@ -142,7 +165,7 @@ export default function ProductDetailScreen({ route }: Props) {
           >
             <Ionicons name="cart" size={18} color={COLORS.white} style={{ marginRight: 8 }} />
             <Text style={styles.cartButtonText}>
-              {qty} nel carrello · {formatPrice(price * qty, product.currency)}
+              {qty} {t('mobile.product.inCart', 'nel carrello')} · {formatPrice(price * qty, product.currency)}
             </Text>
           </TouchableOpacity>
         )}
@@ -176,6 +199,8 @@ const styles = StyleSheet.create({
   priceRow:     { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: SPACING.md },
   price:        { fontSize: 28, fontWeight: '900', color: COLORS.primary },
   originalPrice:{ fontSize: 16, color: COLORS.textSecondary, textDecorationLine: 'line-through' },
+  catDiscBadge: { backgroundColor: COLORS.success, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  catDiscBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 
   notesBox: {
     backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
