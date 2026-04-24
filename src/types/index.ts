@@ -14,6 +14,8 @@ export interface User {
   customerName?: string | null;
 }
 
+export type TaxMode = 'NET' | 'GROSS';
+
 export interface Supplier {
   id:          string;
   slug:        string;
@@ -24,6 +26,10 @@ export interface Supplier {
   logoBgColor?: string | null;
   city?:       string | null;
   phone?:      string | null;
+  currency?:   string;             // valuta fornitore (da settingsJson.currency)
+  taxMode?:    TaxMode;            // NET | GROSS
+  minOrderCents?:     number;      // minimo ordine del cliente (per-buyer)
+  shippingCostCents?: number;      // spese spedizione del cliente (per-buyer)
 }
 
 export type Availability = 'AVAILABLE' | 'COMING_SOON' | 'ON_ORDER' | 'WEEKLY_RESTOCK';
@@ -47,6 +53,8 @@ export interface Product {
   restockRulesJson?: any;            // mappa giorno ordine → giorno arrivo (WEEKLY_RESTOCK)
   leadTimeDays?:     number | null;  // giorni di lead time (ON_ORDER)
   expectedArrival?:  string | null;  // data attesa ISO (COMING_SOON)
+  taxRate?:          number | null;  // aliquota IVA (es. 2.6, 8.1)
+  averageWeight?:    number | null;  // peso medio per unità (per prodotti a KG)
   customerPriceCents?: number | null; // prezzo dedicato se presente
 }
 
@@ -55,7 +63,7 @@ export interface CartItem {
   productId: string;
   quantity:  number;
   notes?:    string | null;
-  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival'> & {
+  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival' | 'taxRate' | 'averageWeight'> & {
     customerPriceCents?: number | null;
   };
 }
@@ -76,6 +84,11 @@ export interface Cart {
   deliveryRules?: DeliveryRule[];
   discountPercent?:        number;  // sconto applicato sul totale ordine (0-100)
   catalogDiscountPercent?: number;  // sconto applicato sui prezzi di catalogo (0-100)
+  // ─── dati commerciali del fornitore per questo buyer ───
+  currency?:           string;   // valuta del fornitore (default 'CHF')
+  taxMode?:            TaxMode;  // 'NET' (imponibile + IVA) | 'GROSS' (IVA inclusa)
+  minOrderCents?:      number;   // minimo ordine del cliente
+  shippingCostCents?:  number;   // spese di spedizione se sotto minimo
 }
 
 export type OrderStatus =

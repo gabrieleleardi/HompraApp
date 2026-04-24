@@ -378,31 +378,71 @@ function CartCard({ cart }: { cart: Cart }) {
   const catalogDiscountPercent = cart.catalogDiscountPercent ?? 0;
   const discountPercent        = cart.discountPercent        ?? 0;
 
-  // Ricalcola il netto partendo dai prezzi dei singoli items,
-  // applicando lo sconto catalogo (solo su prodotti senza prezzo dedicato).
-  const netto = cart.items.reduce((sum, item) => {
+  // ─── Dati commerciali dinamici (dal backend, non hardcoded) ───
+  // taxMode default 'GROSS' per coerenza con CartClientWrapper.tsx del web
+  const currency   = cart.currency          ?? 'CHF';
+  const taxMode    = cart.taxMode           ?? 'GROSS';
+  const MIN_ORDER  = cart.minOrderCents     ?? 0;
+  const SHIPPING   = cart.shippingCostCents ?? 0;
+
+  // Helper di formattazione legato alla valuta del carrello
+  const f = (cents: number) => fmt(cents, currency);
+
+  // Calcolo fiscale per aliquota IVA (replica CartClientWrapper.tsx lato web)
+  const taxBreakdown: Record<number, { taxableCents: number; vatCents: number }> = {};
+
+  cart.items.forEach((item) => {
     const basePrice = item.product.customerPriceCents ?? item.product.priceCents;
     const hasCatDisc = catalogDiscountPercent > 0 && item.product.customerPriceCents == null;
-    const itemPrice = hasCatDisc
+    const unitPrice = hasCatDisc
       ? basePrice - Math.round(basePrice * catalogDiscountPercent / 100)
       : basePrice;
-    return sum + itemPrice * item.quantity;
-  }, 0);
 
-  // Sconto ordine (% sul netto)
+    const isKg     = item.product.uom?.toUpperCase() === 'KG';
+    const avgW     = item.product.averageWeight || 1.0;
+    const lineTot  = isKg
+      ? Math.round(unitPrice * avgW * item.quantity)
+      : unitPrice * item.quantity;
+
+    const rate = Number(item.product.taxRate ?? 0);
+    if (!taxBreakdown[rate]) taxBreakdown[rate] = { taxableCents: 0, vatCents: 0 };
+
+    if (taxMode === 'NET') {
+      const vatCents = Math.round(lineTot * (rate / 100));
+      taxBreakdown[rate].taxableCents += lineTot;
+      taxBreakdown[rate].vatCents     += vatCents;
+    } else {
+      // GROSS: il prezzo contiene già l'IVA → scorporala
+      const taxableCents = Math.round(lineTot / (1 + rate / 100));
+      const vatCents     = lineTot - taxableCents;
+      taxBreakdown[rate].taxableCents += taxableCents;
+      taxBreakdown[rate].vatCents     += vatCents;
+    }
+  });
+
+  const totalTaxableCents = Object.values(taxBreakdown).reduce((s, d) => s + d.taxableCents, 0);
+  const totalVatCents     = Object.values(taxBreakdown).reduce((s, d) => s + d.vatCents,     0);
+
+  // "netto" visualizzato in UI = imponibile prima di sconto
+  const netto = totalTaxableCents;
+
+  // Sconto ordine (% sull'imponibile)
   const discountAmount = discountPercent > 0
-    ? Math.round(netto * discountPercent / 100)
+    ? Math.round(totalTaxableCents * discountPercent / 100)
     : 0;
-  const nettoAfterDiscount = netto - discountAmount;
+  const taxableAfterDiscount = totalTaxableCents - discountAmount;
 
-  // Calcoli (mock IVA 2.6%, shipping CHF 10 se sotto minimo)
-  const MIN_ORDER   = 10000; // 100.00 CHF in cents
-  const SHIPPING    = 1000;  // 10.00 CHF
-  const ivaRate     = 0.026;
-  const iva         = Math.round(nettoAfterDiscount * ivaRate);
-  const belowMin    = nettoAfterDiscount < MIN_ORDER;
-  const shipping    = belowMin ? SHIPPING : 0;
-  const total       = nettoAfterDiscount + iva + shipping;
+  // Riproporziona IVA dopo sconto
+  const discountRatio      = totalTaxableCents > 0 ? taxableAfterDiscount / totalTaxableCents : 1;
+  const iva                = Math.round(totalVatCents * discountRatio);
+  const nettoAfterDiscount = taxableAfterDiscount;
+  const subtotalAfterDiscount = taxableAfterDiscount + iva;
+
+  const hasMinOrder       = MIN_ORDER > 0;
+  const hasShippingOption = SHIPPING  > 0;
+  const belowMin          = hasMinOrder && subtotalAfterDiscount > 0 && subtotalAfterDiscount < MIN_ORDER;
+  const shipping          = (belowMin && hasShippingOption) ? SHIPPING : 0;
+  const total             = subtotalAfterDiscount + shipping;
 
   // Raggruppamento in 2 gruppi (identico al sito web):
   // PRONTA CONSEGNA = prodotti disponibili alla data selezionata
@@ -423,7 +463,16 @@ function CartCard({ cart }: { cart: Cart }) {
   ].filter(g => g.items.length > 0);
 
   async function handleCheckout() {
-    if (belowMin && !acceptShipping) { setError(t('mobile.cart.acceptShippingErr', 'Accetta le spese di consegna per procedere.')); return; }
+    if (belowMin && !hasShippingOption) {
+      setError(
+        t('mobile.cart.belowMinNoShipping', "Minimo d'ordine non raggiunto. Aggiungi prodotti per procedere.")
+      );
+      return;
+    }
+    if (belowMin && hasShippingOption && !acceptShipping) {
+      setError(t('mobile.cart.acceptShippingErr', 'Accetta le spese di consegna per procedere.'));
+      return;
+    }
     setLoading(true); setError('');
     try {
       await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateStr || undefined });
@@ -497,8 +546,15 @@ function CartCard({ cart }: { cart: Cart }) {
       {/* ── Riepilogo importi ── */}
       <View style={styles.summarySection}>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{t('mobile.cart.netTotal', 'Totale Merce (Netto):')}</Text>
-          <Text style={styles.summaryValue}>{fmt(netto)}</Text>
+          <Text style={styles.summaryLabel}>
+            {taxMode === 'NET'
+              ? t('mobile.cart.netTotal',   'Totale Merce (Netto):')
+              : t('mobile.cart.grossTotal', 'Totale Merce (Lordo):')}
+          </Text>
+          {/* In NET mostra solo l'imponibile; in GROSS mostra imponibile + IVA (già inclusa) */}
+          <Text style={styles.summaryValue}>
+            {f(taxMode === 'NET' ? totalTaxableCents : totalTaxableCents + totalVatCents)}
+          </Text>
         </View>
         {discountPercent > 0 && (
           <View style={styles.summaryRow}>
@@ -507,31 +563,50 @@ function CartCard({ cart }: { cart: Cart }) {
                 {t('mobile.cart.discountLabel', 'Sconto {{pct}}%').replace('{{pct}}', String(discountPercent))}
               </Text>
             </View>
-            <Text style={[styles.summaryValue, { color: COLORS.success }]}>− {fmt(discountAmount)}</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.success }]}>− {f(discountAmount)}</Text>
           </View>
         )}
-        <View style={styles.summaryRow}>
-          <View style={styles.ivaBadge}>
-            <Text style={styles.ivaText}>
-              {t('mobile.cart.ivaLabel', 'IVA {{rate}}% (su {{net}})')
-                .replace('{{rate}}', '2.6')
-                .replace('{{net}}', fmt(nettoAfterDiscount))}
-            </Text>
-          </View>
-          <Text style={styles.summaryValue}>+ {fmt(iva)}</Text>
-        </View>
+        {/* IVA: una riga per aliquota.
+            In NET è un addebito (+) che si somma al netto.
+            In GROSS è solo informativa: l'IVA è già inclusa nel lordo. */}
+        {(() => {
+          const rates = Object.keys(taxBreakdown)
+            .map(Number)
+            .filter((r) => (taxBreakdown[r]?.vatCents ?? 0) > 0);
+          if (rates.length === 0 || iva === 0) return null;
+          const ratio = discountRatio;
+          return rates.map((rate) => {
+            const row = taxBreakdown[rate];
+            const taxableAfter = Math.round(row.taxableCents * ratio);
+            const vatAfter     = Math.round(row.vatCents     * ratio);
+            return (
+              <View key={`iva-${rate}`} style={styles.summaryRow}>
+                <View style={styles.ivaBadge}>
+                  <Text style={styles.ivaText}>
+                    {t('mobile.cart.ivaLabel', 'IVA {{rate}}% (su {{net}})')
+                      .replace('{{rate}}', String(rate))
+                      .replace('{{net}}', f(taxableAfter))}
+                  </Text>
+                </View>
+                <Text style={styles.summaryValue}>
+                  {taxMode === 'NET' ? '+ ' : ''}{f(vatAfter)}
+                </Text>
+              </View>
+            );
+          });
+        })()}
         {shipping > 0 && (
           <View style={styles.summaryRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="car-outline" size={13} color={COLORS.error} />
               <Text style={[styles.summaryLabel, { color: COLORS.error }]}>{t('mobile.cart.shippingCost', 'Spese Consegna:')}</Text>
             </View>
-            <Text style={[styles.summaryValue, { color: COLORS.error }]}>{fmt(shipping)}</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.error }]}>{f(shipping)}</Text>
           </View>
         )}
         <View style={[styles.summaryRow, { marginTop: 4 }]}>
           <Text style={styles.totalLabel}>{t('mobile.cart.orderTotal', 'Totale Ordine')}</Text>
-          <Text style={styles.totalValue}>{fmt(total)}</Text>
+          <Text style={styles.totalValue}>{f(total)}</Text>
         </View>
       </View>
 
@@ -568,20 +643,24 @@ function CartCard({ cart }: { cart: Cart }) {
       {belowMin && (
         <View style={styles.warningBox}>
           <Text style={styles.warningText}>
-            {t('mobile.cart.minOrder', "Minimo d'ordine:")} <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER)}</Text>.{'\n'}
-            {t('mobile.cart.missing', 'Mancano')} <Text style={{ fontWeight: '700' }}>{fmt(MIN_ORDER - netto)}</Text> {t('mobile.cart.forFreeShipping', 'per la spedizione gratuita.')}
+            {t('mobile.cart.minOrder', "Minimo d'ordine:")} <Text style={{ fontWeight: '700' }}>{f(MIN_ORDER)}</Text>.{'\n'}
+            {t('mobile.cart.missing', 'Mancano')} <Text style={{ fontWeight: '700' }}>{f(Math.max(0, MIN_ORDER - subtotalAfterDiscount))}</Text> {hasShippingOption
+              ? t('mobile.cart.forFreeShipping', 'per la spedizione gratuita.')
+              : t('mobile.cart.toReachMin', "per raggiungere il minimo d'ordine.")}
           </Text>
-          <View style={styles.acceptRow}>
-            <Switch
-              value={acceptShipping}
-              onValueChange={setAcceptShipping}
-              trackColor={{ false: '#fecaca', true: COLORS.primary }}
-              thumbColor={acceptShipping ? '#fff' : '#f4f4f4'}
-            />
-            <Text style={styles.acceptText}>
-              {t('mobile.cart.acceptShipping1', "Accetto l'addebito di")} <Text style={{ fontWeight: '700' }}>{fmt(SHIPPING)}</Text> {t('mobile.cart.acceptShipping2', "per le spese di consegna e confermo l'invio dell'ordine.")}
-            </Text>
-          </View>
+          {hasShippingOption && (
+            <View style={styles.acceptRow}>
+              <Switch
+                value={acceptShipping}
+                onValueChange={setAcceptShipping}
+                trackColor={{ false: '#fecaca', true: COLORS.primary }}
+                thumbColor={acceptShipping ? '#fff' : '#f4f4f4'}
+              />
+              <Text style={styles.acceptText}>
+                {t('mobile.cart.acceptShipping1', "Accetto l'addebito di")} <Text style={{ fontWeight: '700' }}>{f(SHIPPING)}</Text> {t('mobile.cart.acceptShipping2', "per le spese di consegna e confermo l'invio dell'ordine.")}
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -593,21 +672,28 @@ function CartCard({ cart }: { cart: Cart }) {
 
       {/* ── Bottone conferma ── */}
       <View style={styles.submitWrap}>
-        <TouchableOpacity
-          style={[styles.submitBtn, (loading || (belowMin && !acceptShipping)) && styles.submitBtnDisabled]}
-          onPress={handleCheckout}
-          disabled={loading || (belowMin && !acceptShipping)}
-          activeOpacity={0.8}
-        >
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.submitBtnText}>
-                {belowMin && !acceptShipping
-                  ? t('mobile.cart.acceptShippingBtn', 'Accetta le spese per procedere')
-                  : t('mobile.cart.submitOrder', 'Invia Ordine')}
-              </Text>
-          }
-        </TouchableOpacity>
+        {(() => {
+          const blockedNoShipping  = belowMin && !hasShippingOption;
+          const blockedNotAccepted = belowMin && hasShippingOption && !acceptShipping;
+          const isDisabled = loading || blockedNoShipping || blockedNotAccepted;
+          const label = blockedNoShipping
+            ? t('mobile.cart.minOrderNotReached', "Minimo d'ordine non raggiunto")
+            : blockedNotAccepted
+              ? t('mobile.cart.acceptShippingBtn', 'Accetta le spese per procedere')
+              : t('mobile.cart.submitOrder', 'Invia Ordine');
+          return (
+            <TouchableOpacity
+              style={[styles.submitBtn, isDisabled && styles.submitBtnDisabled]}
+              onPress={handleCheckout}
+              disabled={isDisabled}
+              activeOpacity={0.8}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.submitBtnText}>{label}</Text>}
+            </TouchableOpacity>
+          );
+        })()}
       </View>
 
       {/* ── Date picker ── */}
