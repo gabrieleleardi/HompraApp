@@ -1130,6 +1130,7 @@
       "clearCartMsg": "Remove all items from {{supplier}}?",
       "clear": "Empty",
       "acceptShippingErr": "Accept shipping charges to proceed.",
+      "selectDateErr": "Select a delivery date to proceed.",
       "acceptShippingBtn": "Accept charges to proceed",
       "acceptShippingFull": "I accept the charge of {{amount}} for shipping and confirm the order.",
       "minOrderFull": "Minimum order: {{min}}.\nMissing {{missing}} for free shipping.",
@@ -1235,6 +1236,16 @@
       "loading": "Loading...",
       "retry": "Retry",
       "error": "Error"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "markAllRead": "Mark all read",
+      "empty": "No notifications",
+      "emptySub": "Order updates will appear here",
+      "now": "now",
+      "minShort": "min",
+      "hourShort": "h",
+      "dayShort": "d"
     }
   }
 }
