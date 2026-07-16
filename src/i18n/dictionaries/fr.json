@@ -1130,6 +1130,7 @@
       "clearCartMsg": "Retirer tous les articles de {{supplier}} ?",
       "clear": "Vider",
       "acceptShippingErr": "Acceptez les frais de livraison pour continuer.",
+      "selectDateErr": "Sélectionne une date de livraison pour continuer.",
       "acceptShippingBtn": "Acceptez les frais pour continuer",
       "acceptShippingFull": "J'accepte le débit de {{amount}} pour les frais de livraison et je confirme l'envoi de la commande.",
       "minOrderFull": "Minimum de commande : {{min}}.\nManquent {{missing}} pour la livraison gratuite.",
@@ -1235,6 +1236,16 @@
       "loading": "Chargement...",
       "retry": "Réessayer",
       "error": "Erreur"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "markAllRead": "Tout marquer lu",
+      "empty": "Aucune notification",
+      "emptySub": "Les mises à jour de vos commandes apparaîtront ici",
+      "now": "maintenant",
+      "minShort": "min",
+      "hourShort": "h",
+      "dayShort": "j"
     }
   }
 }

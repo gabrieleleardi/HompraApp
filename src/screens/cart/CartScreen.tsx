@@ -10,6 +10,14 @@ import { getErrorMessage } from '@/api/client';
 import { useI18n }         from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Cart, CartItem, Availability } from '@/types';
+import {
+  hasSaleMultiple,
+  snapQuantityToMultiple,
+  stepUp,
+  stepDown,
+  formatPackLabel,
+} from '@/lib/saleMultiple';
+import { useDebouncedQty } from '@/hooks/useDebouncedQty';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function fmt(cents: number, currency = 'CHF') {
@@ -105,7 +113,30 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
   const hasCatDisc = catalogDiscountPercent > 0 && item.product.customerPriceCents == null;
   const catDiscAmount = hasCatDisc ? Math.round(basePrice * catalogDiscountPercent / 100) : 0;
   const price = basePrice - catDiscAmount;
-  const subtotal = price * item.quantity;
+
+  // P1.2 · optimistic update + debounce 350ms (porting commit web 45b97702)
+  const { qty: localQty, flushSoon, flushNow } = useDebouncedQty(
+    item.quantity,
+    (n) => updateItem(item.productId, supplierId, n),
+  );
+  const subtotal = price * localQty;
+
+  // Editing locale della quantità: l'utente può digitare il numero a mano.
+  const [editing, setEditing] = useState(false);
+  const [qtyText, setQtyText] = useState(String(item.quantity));
+  useEffect(() => {
+    if (!editing) setQtyText(String(localQty));
+  }, [localQty, editing]);
+
+  function commitQty() {
+    setEditing(false);
+    const parsed = parseInt(qtyText, 10);
+    const raw = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    // F-18 · snap floor sul saleMultiple
+    const next = snapQuantityToMultiple(raw, item.product.saleMultiple);
+    setQtyText(String(next));
+    if (next !== localQty) flushNow(next);
+  }
 
   function handleRemove() {
     const title   = t('mobile.cart.removeItem', 'Rimuovi articolo');
@@ -113,7 +144,7 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
       .replace('{{name}}', item.product.name);
     Alert.alert(title, confirm, [
       { text: t('mobile.cart.cancel', 'Annulla'), style: 'cancel' },
-      { text: t('mobile.cart.remove', 'Rimuovi'), style: 'destructive', onPress: () => updateItem(item.productId, supplierId, 0) },
+      { text: t('mobile.cart.remove', 'Rimuovi'), style: 'destructive', onPress: () => flushNow(0) },
     ]);
   }
 
@@ -139,6 +170,14 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
                 <Text style={styles.dedicatoText}>PREZZO DEDICATO</Text>
               </View>
             )}
+            {/* F-18 · chip "cartone N PZ" */}
+            {hasSaleMultiple(item.product.saleMultiple) && (
+              <View style={styles.packBadge}>
+                <Text style={styles.packBadgeText}>
+                  {formatPackLabel(item.product.saleMultiple, item.product.uom)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -155,14 +194,25 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
           <Text style={styles.qtyLabel}>{t('mobile.cart.qty', 'Q.TÀ')}</Text>
           <TouchableOpacity
             style={styles.qtyBtn}
-            onPress={() => updateItem(item.productId, supplierId, Math.max(0, item.quantity - 1))}
+            onPress={() => flushSoon(stepDown(localQty, item.product.saleMultiple))}
           >
             <Ionicons name="remove" size={14} color={COLORS.primary} />
           </TouchableOpacity>
-          <Text style={styles.qtyValue}>{item.quantity}</Text>
+          <TextInput
+            style={styles.qtyInput}
+            value={qtyText}
+            onChangeText={(v) => setQtyText(v.replace(/[^0-9]/g, ''))}
+            onFocus={() => setEditing(true)}
+            onBlur={commitQty}
+            onSubmitEditing={commitQty}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            selectTextOnFocus
+            maxLength={5}
+          />
           <TouchableOpacity
             style={[styles.qtyBtn, styles.qtyBtnAdd]}
-            onPress={() => updateItem(item.productId, supplierId, item.quantity + 1)}
+            onPress={() => flushSoon(stepUp(localQty, item.product.saleMultiple))}
           >
             <Ionicons name="add" size={14} color="#fff" />
           </TouchableOpacity>
@@ -463,6 +513,15 @@ function CartCard({ cart }: { cart: Cart }) {
   ].filter(g => g.items.length > 0);
 
   async function handleCheckout() {
+    // Data di consegna obbligatoria: il web la richiede da sempre, ma qui era
+    // saltabile → ordini arrivati al fornitore senza data (12 casi in prod).
+    // Il backend accetta ancora ordini senza data (retro-compatibilità con le
+    // versioni app già installate), quindi il gate sta qui.
+    if (!deliveryDate) {
+      setError(t('mobile.cart.selectDateErr', 'Seleziona la data di consegna per procedere.'));
+      setShowDatePicker(true);
+      return;
+    }
     if (belowMin && !hasShippingOption) {
       setError(
         t('mobile.cart.belowMinNoShipping', "Minimo d'ordine non raggiunto. Aggiungi prodotti per procedere.")
@@ -802,6 +861,9 @@ const styles = StyleSheet.create({
   itemUnitPrice: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
   dedicatoBadge: { backgroundColor: '#dcfce7', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   dedicatoText:  { fontSize: 9, fontWeight: '800', color: '#16a34a', letterSpacing: 0.4 },
+  // F-18 · chip "cartone N PZ" sulla riga carrello
+  packBadge:     { backgroundColor: '#fef3c7', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  packBadgeText: { fontSize: 9, fontWeight: '800', color: '#92400e', letterSpacing: 0.3 },
   itemSubtotal: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
   subtotalLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
   subtotalValue: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
@@ -812,6 +874,13 @@ const styles = StyleSheet.create({
   qtyBtn:    { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   qtyBtnAdd: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   qtyValue:  { fontSize: 14, fontWeight: '700', color: COLORS.text, minWidth: 20, textAlign: 'center' },
+  qtyInput: {
+    fontSize: 14, fontWeight: '700', color: COLORS.text,
+    minWidth: 44, textAlign: 'center',
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 6,
+    backgroundColor: COLORS.surface,
+  },
   removeBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.background },
   removeBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
 

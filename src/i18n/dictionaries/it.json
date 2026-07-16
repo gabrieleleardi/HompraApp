@@ -1130,6 +1130,7 @@
       "clearCartMsg": "Rimuovere tutti gli articoli da {{supplier}}?",
       "clear": "Svuota",
       "acceptShippingErr": "Accetta le spese di consegna per procedere.",
+      "selectDateErr": "Seleziona la data di consegna per procedere.",
       "acceptShippingBtn": "Accetta le spese per procedere",
       "acceptShippingFull": "Accetto l'addebito di {{amount}} per le spese di consegna e confermo l'invio dell'ordine.",
       "minOrderFull": "Minimo d'ordine: {{min}}.\nMancano {{missing}} per la spedizione gratuita.",
@@ -1235,6 +1236,16 @@
       "loading": "Caricamento...",
       "retry": "Riprova",
       "error": "Errore"
+    },
+    "notifications": {
+      "title": "Notifiche",
+      "markAllRead": "Segna lette",
+      "empty": "Nessuna notifica",
+      "emptySub": "Qui vedrai gli aggiornamenti sui tuoi ordini",
+      "now": "adesso",
+      "minShort": "min",
+      "hourShort": "h",
+      "dayShort": "g"
     }
   }
 }
