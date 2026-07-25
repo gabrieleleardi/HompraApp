@@ -2,12 +2,12 @@ import React from 'react';
 import { NavigationContainer }       from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator }   from '@react-navigation/bottom-tabs';
-import { Ionicons }                  from '@expo/vector-icons';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { COLORS }                    from '@/constants';
 import { useAuth }                   from '@/context/AuthContext';
 import { useCart }                   from '@/context/CartContext';
 import { useI18n }                   from '@/i18n/I18nContext';
+import TabIcon, { CartTabIcon }      from '@/components/TabIcon';
 
 // Screens
 import LoginScreen          from '@/screens/auth/LoginScreen';
@@ -17,12 +17,14 @@ import CartScreen           from '@/screens/cart/CartScreen';
 import OrdersScreen         from '@/screens/orders/OrdersScreen';
 import OrderDetailScreen    from '@/screens/orders/OrderDetailScreen';
 import ProfileScreen        from '@/screens/profile/ProfileScreen';
+import NotificationsScreen  from '@/screens/notifications/NotificationsScreen';
 
 export type RootStackParamList = {
   Login:         undefined;
   Main:          undefined;
   ProductDetail: { productId: string; supplierId: string };
   OrderDetail:   { orderId: string };
+  Notifications: undefined;
 };
 
 export type TabParamList = {
@@ -35,18 +37,9 @@ export type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab   = createBottomTabNavigator<TabParamList>();
 
-function CartTabIcon({ color, size }: { color: string; size: number }) {
+function CartTabIconWithBadge({ color, size }: { color: string; size: number }) {
   const { totalItems } = useCart();
-  return (
-    <View>
-      <Ionicons name="cart-outline" size={size} color={color} />
-      {totalItems > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{totalItems > 99 ? '99+' : totalItems}</Text>
-        </View>
-      )}
-    </View>
-  );
+  return <CartTabIcon name="cart-outline" color={color} size={size} badge={totalItems} />;
 }
 
 function MainTabs() {
@@ -79,7 +72,7 @@ function MainTabs() {
         name="Catalog"
         component={CatalogScreen}
         options={{
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="grid-outline" size={size} color={color} />,
           tabBarLabel: t('mobile.tabs.catalog', 'Catalogo'),
           // Il logo e il pulsante "I miei Fornitori" sono gestiti
           // dinamicamente da CatalogScreen via navigation.setOptions
@@ -99,7 +92,7 @@ function MainTabs() {
         component={CartScreen}
         options={{
           title: t('mobile.tabs.cart', 'Carrello'),
-          tabBarIcon: (props) => <CartTabIcon {...props} />,
+          tabBarIcon: (props) => <CartTabIconWithBadge {...props} />,
         }}
       />
       <Tab.Screen
@@ -107,7 +100,7 @@ function MainTabs() {
         component={OrdersScreen}
         options={{
           title: t('mobile.tabs.orders', 'Ordini'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="receipt-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -115,7 +108,7 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           title: t('mobile.tabs.profile', 'Profilo'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <TabIcon name="person-outline" size={size} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -143,6 +136,11 @@ export default function AppNavigator() {
               component={OrderDetailScreen}
               options={{ headerShown: true, title: 'Dettaglio Ordine', headerBackTitle: '' }}
             />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ headerShown: true, title: 'Notifiche', headerBackTitle: '' }}
+            />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
@@ -152,22 +150,4 @@ export default function AppNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    position:        'absolute',
-    right:           -6,
-    top:             -4,
-    backgroundColor: COLORS.error,
-    borderRadius:    8,
-    minWidth:        16,
-    height:          16,
-    justifyContent:  'center',
-    alignItems:      'center',
-    paddingHorizontal: 2,
-  },
-  badgeText: {
-    color:    COLORS.white,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-});
+const styles = StyleSheet.create({});

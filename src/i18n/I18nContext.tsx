@@ -6,15 +6,25 @@ import itDict from './dictionaries/it.json';
 import frDict from './dictionaries/fr.json';
 import deDict from './dictionaries/de.json';
 import enDict from './dictionaries/en.json';
+import esDict from './dictionaries/es.json';
+import ptDict from './dictionaries/pt.json';
 
-export type Lang = 'it' | 'fr' | 'de' | 'en';
+export type Lang = 'it' | 'fr' | 'de' | 'en' | 'es' | 'pt';
 
 const DICTS: Record<Lang, any> = {
   it: itDict,
   fr: frDict,
   de: deDict,
   en: enDict,
+  es: esDict,
+  pt: ptDict,
 };
+
+// Insieme delle lingue supportate, usato per validare valori salvati / device
+const SUPPORTED: Lang[] = ['it', 'fr', 'de', 'en', 'es', 'pt'];
+function isSupportedLang(code: string): code is Lang {
+  return (SUPPORTED as string[]).includes(code);
+}
 
 const STORAGE_KEY = 'hompra_lang';
 
@@ -26,7 +36,7 @@ function detectDeviceLang(): Lang {
         || 'it')
       : (NativeModules.I18nManager?.localeIdentifier || 'it');
     const code = raw.toLowerCase().slice(0, 2);
-    if (code === 'fr' || code === 'de' || code === 'en') return code;
+    if (isSupportedLang(code)) return code;
     return 'it';
   } catch {
     return 'it';
@@ -57,8 +67,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const saved = await SecureStore.getItemAsync(STORAGE_KEY);
-        if (saved && (saved === 'it' || saved === 'fr' || saved === 'de' || saved === 'en')) {
-          setLangState(saved as Lang);
+        if (saved && isSupportedLang(saved)) {
+          setLangState(saved);
         } else {
           setLangState(detectDeviceLang());
         }

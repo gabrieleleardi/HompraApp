@@ -13,8 +13,8 @@ import { COLORS, SPACING, RADIUS } from '@/constants';
 
 const REMEMBER_KEY = 'hompra_remember_credentials';
 
-// Rileva la lingua del dispositivo e la mappa sui locale supportati dal sito (it/fr/de/en)
-function getDeviceLang(): 'it' | 'fr' | 'de' | 'en' {
+// Rileva la lingua del dispositivo e la mappa sui locale supportati dal sito (it/fr/de/en/es/pt)
+function getDeviceLang(): 'it' | 'fr' | 'de' | 'en' | 'es' | 'pt' {
   try {
     const raw: string = Platform.OS === 'ios'
       ? (NativeModules.SettingsManager?.settings?.AppleLocale
@@ -22,7 +22,7 @@ function getDeviceLang(): 'it' | 'fr' | 'de' | 'en' {
         || 'it')
       : (NativeModules.I18nManager?.localeIdentifier || 'it');
     const code = raw.toLowerCase().slice(0, 2);
-    if (code === 'fr' || code === 'de' || code === 'en') return code;
+    if (code === 'fr' || code === 'de' || code === 'en' || code === 'es' || code === 'pt') return code;
     return 'it';
   } catch {
     return 'it';

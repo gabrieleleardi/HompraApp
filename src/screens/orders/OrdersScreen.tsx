@@ -14,7 +14,7 @@ import type { RootStackParamList } from '@/navigation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const LOCALE_MAP: Record<Lang, string> = { it: 'it-IT', fr: 'fr-CH', de: 'de-CH', en: 'en-GB' };
+const LOCALE_MAP: Record<Lang, string> = { it: 'it-IT', fr: 'fr-CH', de: 'de-CH', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
 
 function formatPrice(cents: number, currency = 'CHF') {
   return `${currency} ${(cents / 100).toFixed(2)}`;

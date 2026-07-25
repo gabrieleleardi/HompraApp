@@ -55,6 +55,7 @@ export interface Product {
   expectedArrival?:  string | null;  // data attesa ISO (COMING_SOON)
   taxRate?:          number | null;  // aliquota IVA (es. 2.6, 8.1)
   averageWeight?:    number | null;  // peso medio per unità (per prodotti a KG)
+  saleMultiple?:     number | null;  // F-18 · null = vendita libera, >=2 = vincolo cartone
   customerPriceCents?: number | null; // prezzo dedicato se presente
 }
 
@@ -63,7 +64,7 @@ export interface CartItem {
   productId: string;
   quantity:  number;
   notes?:    string | null;
-  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival' | 'taxRate' | 'averageWeight'> & {
+  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival' | 'taxRate' | 'averageWeight' | 'saleMultiple'> & {
     customerPriceCents?: number | null;
   };
 }
@@ -120,10 +121,45 @@ export interface Order {
   currency:        string;
   notes?:          string | null;
   deliveryDateText?: string | null;
+  // F-17b · data consegna confermata dal fornitore (ISO) + nota motivazione
+  confirmedDeliveryDate?: string | null;
+  confirmedDeliveryNote?: string | null;
+  requestedDate?:         string | null;
   createdAt:       string;
   updatedAt:       string;
   items:           OrderItem[];
   supplier:        Pick<Supplier, 'id' | 'name' | 'slug' | 'imageUrl'>;
+}
+
+// ─── Notifiche ───────────────────────────────────────────
+
+export type NotificationType =
+  | 'ORDER_CONFIRMED'
+  | 'ORDER_SHIPPED'
+  | 'ORDER_DELIVERED'
+  | 'ORDER_CANCELLED'
+  | 'ORDER_RECEIVED'
+  | 'CONNECTION_APPROVED'
+  | 'CONNECTION_REQUEST'
+  | 'SECURITY_ALERT'
+  | 'GENERIC'
+  | string;
+
+export interface AppNotification {
+  id:        string;
+  type:      NotificationType;
+  title:     string;
+  message:   string;
+  link?:     string | null;
+  payload?:  any | null;
+  readAt?:   string | null;
+  createdAt: string;
+}
+
+export interface NotificationsResponse {
+  notifications: AppNotification[];
+  total:         number;
+  unreadCount:   number;
 }
 
 // ─── Risposte API ────────────────────────────────────────

@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
 } from 'react-native';
+import Constants     from 'expo-constants';
 import { Ionicons }  from '@expo/vector-icons';
 import { useAuth }   from '@/context/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 
 const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'de', label: 'Deutsch',  flag: '🇩🇪' },
-  { code: 'en', label: 'English',  flag: '🇬🇧' },
+  { code: 'it', label: 'Italiano',   flag: '🇮🇹' },
+  { code: 'fr', label: 'Français',   flag: '🇫🇷' },
+  { code: 'de', label: 'Deutsch',    flag: '🇩🇪' },
+  { code: 'en', label: 'English',    flag: '🇬🇧' },
+  { code: 'es', label: 'Español',    flag: '🇪🇸' },
+  { code: 'pt', label: 'Português',  flag: '🇵🇹' },
 ];
 
 type IoniconsName = keyof typeof Ionicons.glyphMap;
@@ -49,6 +52,16 @@ export default function ProfileScreen() {
 
   const initials = (user?.name ?? user?.email ?? 'U')
     .split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+
+  // Versione e build letti dinamicamente da app.json (via expo-constants),
+  // così restano sempre allineati senza modifiche manuali.
+  const appVersion = Constants.expoConfig?.version ?? '—';
+  const appBuild =
+    (Constants.expoConfig?.ios?.buildNumber as string | undefined) ??
+    (Constants.expoConfig?.android?.versionCode != null
+      ? String(Constants.expoConfig.android.versionCode)
+      : undefined);
+  const versionLabel = appBuild ? `${appVersion} (${appBuild})` : appVersion;
 
   const roleLabel = user?.role
     ? t(`mobile.profile.role.${user.role}`, user.role)
@@ -129,7 +142,7 @@ export default function ProfileScreen() {
         <InfoRow
           icon="information-circle-outline"
           label={t('mobile.profile.version', 'Versione app')}
-          value="1.0.0"
+          value={versionLabel}
         />
         <InfoRow
           icon="server-outline"

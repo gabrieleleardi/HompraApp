@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Image,
+  TouchableOpacity, ActivityIndicator, Image, TextInput,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -12,6 +12,15 @@ import { useI18n }    from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Product } from '@/types';
 import type { RootStackParamList } from '@/navigation';
+import {
+  hasSaleMultiple,
+  effectiveMultiple,
+  snapQuantityToMultiple,
+  stepUp,
+  stepDown,
+  formatPackLabel,
+} from '@/lib/saleMultiple';
+import { useDebouncedQty } from '@/hooks/useDebouncedQty';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -31,7 +40,30 @@ export default function ProductDetailScreen({ route }: Props) {
 
   const cart     = carts.find((c) => c.supplierId === supplierId);
   const cartItem = cart?.items.find((i) => i.productId === productId);
-  const qty      = cartItem?.quantity ?? 0;
+  const serverQty = cartItem?.quantity ?? 0;
+
+  // P1.2 · optimistic update + debounce 350ms (porting commit web 45b97702)
+  const { qty, flushSoon, flushNow } = useDebouncedQty(
+    serverQty,
+    (n) => updateItem(productId, supplierId, n),
+  );
+
+  // Editing locale della quantità per consentire l'input manuale del numero.
+  const [editingQty, setEditingQty] = useState(false);
+  const [qtyText, setQtyText] = useState(String(serverQty));
+  useEffect(() => {
+    if (!editingQty) setQtyText(String(qty));
+  }, [qty, editingQty]);
+
+  function commitQty() {
+    setEditingQty(false);
+    const parsed = parseInt(qtyText, 10);
+    const raw = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    // F-18 · snap floor sul saleMultiple del prodotto (stessa logica server-side)
+    const next = snapQuantityToMultiple(raw, product?.saleMultiple ?? null);
+    setQtyText(String(next));
+    if (next !== qty) flushNow(next);
+  }
 
   // Recupera il singolo prodotto dal backend
   useEffect(() => {
@@ -65,6 +97,11 @@ export default function ProductDetailScreen({ route }: Props) {
   const hasCatalogDiscount = catalogDiscountPercent > 0 && product.customerPriceCents == null;
   const discountAmount = hasCatalogDiscount ? Math.round(basePrice * catalogDiscountPercent / 100) : 0;
   const price = basePrice - discountAmount;
+
+  // F-18 · vendita a multipli
+  const hasMultiple = hasSaleMultiple(product.saleMultiple);
+  const multiple    = effectiveMultiple(product.saleMultiple);
+  const packPriceCents = hasMultiple ? price * multiple : 0;
 
   const availColorMap: Record<string, string> = {
     AVAILABLE:      COLORS.success,
@@ -122,6 +159,16 @@ export default function ProductDetailScreen({ route }: Props) {
           )}
         </View>
 
+        {/* F-18 · Chip vendita a multipli (cartone) */}
+        {hasMultiple && (
+          <View style={styles.packBadge}>
+            <Ionicons name="cube-outline" size={14} color="#92400e" style={{ marginRight: 6 }} />
+            <Text style={styles.packBadgeText}>
+              {t('mobile.product.minQty', 'min')} {multiple} {(product.uom ?? 'PZ').toUpperCase()} · {formatPackLabel(product.saleMultiple, product.uom)} {formatPrice(packPriceCents, product.currency)}
+            </Text>
+          </View>
+        )}
+
         {product.notes && (
           <View style={styles.notesBox}>
             <Text style={styles.notesText}>{product.notes}</Text>
@@ -141,17 +188,28 @@ export default function ProductDetailScreen({ route }: Props) {
           <View style={styles.qtyControl}>
             <TouchableOpacity
               style={[styles.qtyBtn, qty === 0 && styles.qtyBtnDisabled]}
-              onPress={() => qty > 0 && updateItem(productId, supplierId, qty - 1)}
+              onPress={() => qty > 0 && flushSoon(stepDown(qty, product.saleMultiple))}
               disabled={qty === 0}
             >
               <Ionicons name="remove" size={20} color={qty === 0 ? COLORS.border : COLORS.primary} />
             </TouchableOpacity>
 
-            <Text style={styles.qtyText}>{qty}</Text>
+            <TextInput
+              style={styles.qtyInput}
+              value={qtyText}
+              onChangeText={(v) => setQtyText(v.replace(/[^0-9]/g, ''))}
+              onFocus={() => setEditingQty(true)}
+              onBlur={commitQty}
+              onSubmitEditing={commitQty}
+              keyboardType="number-pad"
+              returnKeyType="done"
+              selectTextOnFocus
+              maxLength={5}
+            />
 
             <TouchableOpacity
               style={styles.qtyBtn}
-              onPress={() => updateItem(productId, supplierId, qty + 1)}
+              onPress={() => flushSoon(stepUp(qty, product.saleMultiple))}
             >
               <Ionicons name="add" size={20} color={COLORS.primary} />
             </TouchableOpacity>
@@ -209,6 +267,16 @@ const styles = StyleSheet.create({
   },
   notesText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
 
+  // F-18 · chip "min N · cartone CHF X" (allineato al badge giallo del web)
+  packBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fef3c7', borderRadius: RADIUS.sm,
+    paddingHorizontal: 10, paddingVertical: 6,
+    marginBottom: SPACING.md,
+    alignSelf: 'flex-start',
+  },
+  packBadgeText: { color: '#92400e', fontSize: 12, fontWeight: '700' },
+
   infoRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.sm },
   infoText: { color: COLORS.textSecondary, fontSize: 13 },
 
@@ -223,6 +291,13 @@ const styles = StyleSheet.create({
   qtyBtn:         { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   qtyBtnDisabled: { borderColor: COLORS.border },
   qtyText:        { fontSize: 20, fontWeight: '700', color: COLORS.text, minWidth: 28, textAlign: 'center' },
+  qtyInput: {
+    fontSize: 20, fontWeight: '700', color: COLORS.text,
+    minWidth: 60, textAlign: 'center',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface,
+  },
 
   cartButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

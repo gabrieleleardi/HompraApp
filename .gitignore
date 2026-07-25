@@ -5,3 +5,6 @@
 expo-env.d.ts
 # @end expo-cli
 node_modules
+android/gradle.properties
+.DS_Store
+.expo/

@@ -4,7 +4,7 @@ import React, {
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, ScrollView,
-  Modal, Image, Animated, Easing, Platform,
+  Modal, Image, Animated, Easing, Platform, Keyboard,
 } from 'react-native';
 import { useNavigation }            from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,11 +13,21 @@ import { getCatalog } from '@/api/catalog';
 import { getSuppliers }             from '@/api/catalog';
 import { useCart }                  from '@/context/CartContext';
 import { useAuth }                  from '@/context/AuthContext';
+import { useNotifications }         from '@/context/NotificationsContext';
 import { getErrorMessage }          from '@/api/client';
 import { useI18n }                  from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS }  from '@/constants';
 import type { Product, Supplier }   from '@/types';
 import type { RootStackParamList }  from '@/navigation';
+import {
+  hasSaleMultiple,
+  effectiveMultiple,
+  snapQuantityToMultiple,
+  stepUp,
+  stepDown,
+  formatPackLabel,
+} from '@/lib/saleMultiple';
+import { useDebouncedQty } from '@/hooks/useDebouncedQty';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -50,7 +60,7 @@ function ProductRow({
   const { carts, updateItem } = useCart();
   const cart     = carts.find(c => c.supplierId === supplierId);
   const cartItem = cart?.items.find(i => i.productId === product.id);
-  const qty      = cartItem?.quantity ?? 0;
+  const serverQty = cartItem?.quantity ?? 0;
   const basePrice = product.customerPriceCents ?? product.priceCents;
   // Applica lo sconto catalogo solo se il prodotto NON ha già un prezzo dedicato
   const hasCatalogDiscount = catalogDiscountPercent > 0 && product.customerPriceCents == null;
@@ -58,14 +68,37 @@ function ProductRow({
     ? Math.round(basePrice * catalogDiscountPercent / 100)
     : 0;
   const price = basePrice - discountAmount;
-  const [localQty, setLocalQty] = useState(qty);
 
-  useEffect(() => { setLocalQty(qty); }, [qty]);
+  // P1.2 · optimistic update + debounce 350ms (porting commit web 45b97702)
+  const { qty: localQty, flushSoon, flushNow } = useDebouncedQty(
+    serverQty,
+    (n) => updateItem(product.id, supplierId, n),
+  );
 
-  async function handleChange(delta: number) {
-    const next = Math.max(0, localQty + delta);
-    setLocalQty(next);
-    await updateItem(product.id, supplierId, next);
+  // Editing locale per consentire input manuale del numero.
+  const [editingQty, setEditingQty] = useState(false);
+  const [qtyText, setQtyText] = useState(String(serverQty));
+  useEffect(() => {
+    if (!editingQty) setQtyText(String(localQty));
+  }, [localQty, editingQty]);
+
+  // F-18 · step a multipli quando product.saleMultiple >= 2, altrimenti +/-1
+  function handleChange(delta: number) {
+    const next = delta > 0
+      ? stepUp(localQty, product.saleMultiple)
+      : stepDown(localQty, product.saleMultiple);
+    setQtyText(String(next));
+    flushSoon(next);
+  }
+
+  function commitQty() {
+    setEditingQty(false);
+    const parsed = parseInt(qtyText, 10);
+    const raw = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    // F-18 · snap floor sul saleMultiple (stessa logica server-side)
+    const next = snapQuantityToMultiple(raw, product.saleMultiple);
+    setQtyText(String(next));
+    if (next !== localQty) flushNow(next);
   }
 
   const availColor = product.availability === 'AVAILABLE'
@@ -109,6 +142,14 @@ function ProductRow({
         ) : (
           <Text style={styles.productPrice}>{formatPrice(price, product.currency)}</Text>
         )}
+        {/* F-18 · chip cartone (badge giallo allineato al web) */}
+        {hasSaleMultiple(product.saleMultiple) && (
+          <View style={styles.packBadge}>
+            <Text style={styles.packBadgeText}>
+              {formatPackLabel(product.saleMultiple, product.uom)} · {formatPrice(price * effectiveMultiple(product.saleMultiple), product.currency)}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.qtyControl}>
@@ -117,7 +158,18 @@ function ProductRow({
             <TouchableOpacity style={[styles.qtyBtn, styles.qtyBtnAdd]} onPress={() => handleChange(1)}>
               <Ionicons name="add" size={15} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.qtyText}>{localQty}</Text>
+            <TextInput
+              style={styles.qtyInput}
+              value={qtyText}
+              onChangeText={(v) => setQtyText(v.replace(/[^0-9]/g, ''))}
+              onFocus={() => setEditingQty(true)}
+              onBlur={commitQty}
+              onSubmitEditing={() => { commitQty(); Keyboard.dismiss(); }}
+              keyboardType="number-pad"
+              returnKeyType="done"
+              selectTextOnFocus
+              maxLength={5}
+            />
             <TouchableOpacity style={styles.qtyBtn} onPress={() => handleChange(-1)}>
               <Ionicons name="remove" size={15} color={COLORS.primary} />
             </TouchableOpacity>
@@ -137,6 +189,7 @@ export default function CatalogScreen() {
   const navigation = useNavigation<Nav>();
   const { fetchCarts } = useCart();
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
   const { t } = useI18n();
 
   const [suppliers,            setSuppliers]            = useState<Supplier[]>([]);
@@ -175,13 +228,25 @@ export default function CatalogScreen() {
             <Text style={styles.supplierSelectorText} numberOfLines={1}>{t('mobile.catalog.suppliers', 'I miei Fornitori')}</Text>
             <Ionicons name="chevron-down" size={12} color={COLORS.textSecondary} />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => navigation.navigate('Notifications' as any)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Profile' as any)}>
             <Text style={styles.avatarText}>{initials}</Text>
           </TouchableOpacity>
         </View>
       ),
     });
-  }, [navigation, user, t]);
+  }, [navigation, user, t, unreadCount]);
 
   // ── Carica fornitori ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -347,8 +412,8 @@ export default function CatalogScreen() {
             returnKeyType="search"
           />
           {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.5)" />
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -567,6 +632,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface, maxWidth: 180,
   },
   supplierSelectorText: { fontSize: 12, fontWeight: '600', color: COLORS.text, flexShrink: 1 },
+  bellBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  bellBadge: {
+    position: 'absolute', top: -1, right: -1,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: COLORS.error, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3, borderWidth: 1.5, borderColor: COLORS.surface,
+  },
+  bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
@@ -687,11 +760,20 @@ const styles = StyleSheet.create({
   productPriceDisc: { fontSize: 15, fontWeight: '700', color: COLORS.success, letterSpacing: -0.3 },
   discountBadge:    { backgroundColor: COLORS.success, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   discountBadgeText:{ color: '#fff', fontSize: 10, fontWeight: '800' },
+  // F-18 · chip "cartone N PZ · CHF X" (badge giallo allineato al web)
+  packBadge:        { backgroundColor: '#fef3c7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3, alignSelf: 'flex-start' },
+  packBadgeText:    { color: '#92400e', fontSize: 10, fontWeight: '700' },
 
   qtyControl: { flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 },
   qtyBtn: { width: 31, height: 31, borderRadius: 16, borderWidth: 1.5, borderColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   qtyBtnAdd: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   qtyText: { minWidth: 18, textAlign: 'center', fontWeight: '700', fontSize: 14, color: COLORS.text },
+  qtyInput: {
+    minWidth: 42, textAlign: 'center', fontWeight: '700', fontSize: 13, color: COLORS.text,
+    paddingHorizontal: 4, paddingVertical: 1,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 6,
+    backgroundColor: COLORS.surface,
+  },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   modalSheet: {

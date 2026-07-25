@@ -12,7 +12,7 @@ import type { RootStackParamList } from '@/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
-const LOCALE_MAP: Record<Lang, string> = { it: 'it-IT', fr: 'fr-CH', de: 'de-CH', en: 'en-GB' };
+const LOCALE_MAP: Record<Lang, string> = { it: 'it-IT', fr: 'fr-CH', de: 'de-CH', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
 
 function formatPrice(cents: number, currency = 'CHF') {
   return `${currency} ${(cents / 100).toFixed(2)}`;
@@ -86,6 +86,44 @@ export default function OrderDetailScreen({ route }: Props) {
             <Text style={styles.infoText}>{t('mobile.orders.delivery', 'Consegna')}: {order.deliveryDateText}</Text>
           </View>
         )}
+        {/* F-17b · Data consegna confermata dal fornitore.
+            Verde se coincide con la richiesta, arancione se modificata. */}
+        {order.confirmedDeliveryDate && (() => {
+          const conf = new Date(order.confirmedDeliveryDate);
+          if (Number.isNaN(conf.getTime())) return null;
+          const confISO = conf.toISOString().slice(0, 10);
+          let reqISO: string | null = null;
+          if (order.requestedDate) {
+            const r = new Date(order.requestedDate);
+            if (!Number.isNaN(r.getTime())) reqISO = r.toISOString().slice(0, 10);
+          } else if (order.deliveryDateText) {
+            const p = new Date(order.deliveryDateText);
+            if (!Number.isNaN(p.getTime())) reqISO = p.toISOString().slice(0, 10);
+          }
+          const changed = reqISO !== null && reqISO !== confISO;
+          const localeKey = LOCALE_MAP[lang] ?? 'it-IT';
+          const shortDate = conf.toLocaleDateString(localeKey, { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const longDate  = conf.toLocaleDateString(localeKey, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+          const tone = changed
+            ? { bg: '#fff7ed', border: '#fed7aa', text: '#c2410c' }
+            : { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' };
+          return (
+            <View style={[styles.confirmedBox, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+              <Text style={[styles.confirmedLabel, { color: tone.text }]}>
+                {changed
+                  ? t('mobile.orders.deliveryConfirmedChanged', 'Consegna confermata (modificata)')
+                  : t('mobile.orders.deliveryConfirmed', 'Consegna confermata')}
+              </Text>
+              <Text style={[styles.confirmedDate, { color: tone.text }]}>{shortDate}</Text>
+              <Text style={[styles.confirmedLong, { color: tone.text }]}>{longDate}</Text>
+              {order.confirmedDeliveryNote && (
+                <Text style={[styles.confirmedNote, { color: tone.text }]} numberOfLines={4}>
+                  {order.confirmedDeliveryNote}
+                </Text>
+              )}
+            </View>
+          );
+        })()}
         {order.notes && (
           <View style={styles.notesBox}>
             <Text style={styles.notesText}>{order.notes}</Text>
@@ -140,6 +178,12 @@ const styles = StyleSheet.create({
   infoText:     { fontSize: 13, color: COLORS.textSecondary },
   notesBox:     { marginTop: SPACING.sm, backgroundColor: COLORS.background, borderRadius: RADIUS.sm, padding: SPACING.sm },
   notesText:    { fontSize: 13, color: COLORS.text },
+  // F-17b · box "Consegna confermata" (verde / arancione)
+  confirmedBox: { marginTop: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1 },
+  confirmedLabel: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  confirmedDate:  { fontSize: 20, fontWeight: '800' },
+  confirmedLong:  { fontSize: 12, marginTop: 2 },
+  confirmedNote:  { fontSize: 12, marginTop: 6, fontStyle: 'italic' },
 
   sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
 
