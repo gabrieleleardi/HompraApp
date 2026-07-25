@@ -23,7 +23,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.hompra.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "minSdkVersion": 24,
