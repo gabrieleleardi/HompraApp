@@ -14,6 +14,7 @@ export type CatalogFilters = {
   isNew?:        boolean;
   isPromo?:      boolean;
   isMine?:       boolean;
+  favorites?:    boolean;  // F-21 · solo preferiti
   page?:         number;
 };
 

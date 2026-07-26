@@ -34,6 +34,14 @@ export interface Supplier {
 
 export type Availability = 'AVAILABLE' | 'COMING_SOON' | 'ON_ORDER' | 'WEEKLY_RESTOCK';
 
+// F-20 · attributo strutturato della scheda prodotto (etichetta)
+export interface ProductAttribute {
+  key:     string;
+  label:   string;
+  value:   string;
+  visible: boolean;
+}
+
 export interface Product {
   id:           string;
   code:         string;
@@ -57,6 +65,8 @@ export interface Product {
   averageWeight?:    number | null;  // peso medio per unità (per prodotti a KG)
   saleMultiple?:     number | null;  // F-18 · null = vendita libera, >=2 = vincolo cartone
   customerPriceCents?: number | null; // prezzo dedicato se presente
+  attributes?:       ProductAttribute[]; // F-20 · etichette strutturate visibili
+  isFavorite?:       boolean;         // F-21 · preferito del buyer
 }
 
 export interface CartItem {

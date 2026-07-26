@@ -7,6 +7,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons }   from '@expo/vector-icons';
 import { getProduct } from '@/api/catalog';
+import { toggleFavorite } from '@/api/favorites';
 import { useCart }    from '@/context/CartContext';
 import { useI18n }    from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
@@ -133,7 +134,31 @@ export default function ProductDetailScreen({ route }: Props) {
           </View>
         </View>
 
-        <Text style={styles.productName}>{product.name}</Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.productName, { flex: 1 }]}>{product.name}</Text>
+          {/* F-21 · stellina preferito */}
+          <TouchableOpacity
+            style={styles.favBtnDetail}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={async () => {
+              const prev = !!product.isFavorite;
+              setProduct({ ...product, isFavorite: !prev });
+              try {
+                const next = await toggleFavorite(product.id);
+                setProduct((p) => (p ? { ...p, isFavorite: next } : p));
+              } catch {
+                setProduct((p) => (p ? { ...p, isFavorite: prev } : p));
+              }
+            }}
+            accessibilityLabel={product.isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+          >
+            <Ionicons
+              name={product.isFavorite ? 'star' : 'star-outline'}
+              size={24}
+              color={product.isFavorite ? '#f59e0b' : COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.productCode}>{t('mobile.cart.code', 'Codice')}. {product.code}{product.uom ? ` · ${product.uom}` : ''}</Text>
 
         {product.category && (
@@ -169,9 +194,20 @@ export default function ProductDetailScreen({ route }: Props) {
           </View>
         )}
 
-        {product.notes && (
-          <View style={styles.notesBox}>
-            <Text style={styles.notesText}>{product.notes}</Text>
+        {/* F-20 · Etichette strutturate (attributi) + note libere come fallback */}
+        {((product.attributes && product.attributes.length > 0) || product.notes) && (
+          <View style={styles.detailsBox}>
+            {product.attributes?.map((a) => (
+              <View key={a.key} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{a.label}</Text>
+                <Text style={styles.detailValue}>{a.value}</Text>
+              </View>
+            ))}
+            {product.notes ? (
+              <Text style={[styles.notesText, (product.attributes?.length ?? 0) > 0 && { marginTop: 10 }]}>
+                {product.notes}
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -251,7 +287,13 @@ const styles = StyleSheet.create({
   badge:    { borderRadius: RADIUS.sm, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText:{ color: COLORS.white, fontSize: 11, fontWeight: '700' },
 
+  nameRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   productName:  { fontSize: 22, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  favBtnDetail: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    justifyContent: 'center', alignItems: 'center', marginTop: 2,
+  },
   productCode:  { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
   category:     { fontSize: 13, color: COLORS.accent, fontWeight: '600', marginBottom: SPACING.sm },
   priceRow:     { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: SPACING.md },
@@ -266,6 +308,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3, borderLeftColor: COLORS.accent,
   },
   notesText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
+  // F-20 · box attributi strutturati
+  detailsBox: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.md,
+  },
+  detailRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingVertical: 6, gap: 12,
+  },
+  detailLabel: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700', width: 130 },
+  detailValue: { color: COLORS.text, fontSize: 14, fontWeight: '600', flex: 1 },
 
   // F-18 · chip "min N · cartone CHF X" (allineato al badge giallo del web)
   packBadge: {

@@ -10,6 +10,7 @@ import { useNavigation }            from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons }                 from '@expo/vector-icons';
 import { getCatalog } from '@/api/catalog';
+import { toggleFavorite } from '@/api/favorites';
 import { getSuppliers }             from '@/api/catalog';
 import { useCart }                  from '@/context/CartContext';
 import { useAuth }                  from '@/context/AuthContext';
@@ -34,11 +35,12 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 const NAV_BG      = '#163a5f';
 const PILL_ACTIVE = '#2563eb';
 
-type StatusFilter = 'all' | 'mine' | 'available' | 'coming' | 'onorder' | 'new' | 'promo';
+type StatusFilter = 'all' | 'favorites' | 'mine' | 'available' | 'coming' | 'onorder' | 'new' | 'promo';
 
 const STATUS_PILLS: { key: StatusFilter; labelKey: string; fallback: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'all',       labelKey: 'mobile.catalog.allFilter',       fallback: 'Tutti',           icon: 'grid-outline'      },
-  { key: 'mine',      labelKey: 'mobile.catalog.mine',            fallback: 'I miei Prodotti', icon: 'star-outline'      },
+  { key: 'favorites', labelKey: 'mobile.catalog.favorites',       fallback: 'Preferiti',       icon: 'star'              },
+  { key: 'mine',      labelKey: 'mobile.catalog.mine',            fallback: 'I miei Prodotti', icon: 'bookmark-outline'  },
   { key: 'available', labelKey: 'mobile.catalog.availableFilter', fallback: 'Disponibili',     icon: 'checkmark-outline' },
   { key: 'coming',    labelKey: 'mobile.catalog.coming',          fallback: 'In Arrivo',       icon: 'car-outline'       },
   { key: 'onorder',   labelKey: 'mobile.catalog.onorder',         fallback: 'Su Ordinazione',  icon: 'time-outline'      },
@@ -52,10 +54,11 @@ function formatPrice(cents: number, currency = 'CHF') {
 
 // ─── ProductRow ──────────────────────────────────────────────────────────────
 function ProductRow({
-  product, supplierId, onPress, catalogDiscountPercent = 0,
+  product, supplierId, onPress, catalogDiscountPercent = 0, onToggleFavorite,
 }: {
   product: Product; supplierId: string; onPress: () => void;
   catalogDiscountPercent?: number;
+  onToggleFavorite?: (productId: string) => void;
 }) {
   const { carts, updateItem } = useCart();
   const cart     = carts.find(c => c.supplierId === supplierId);
@@ -119,6 +122,21 @@ function ProductRow({
           )}
         </View>
         <View style={[styles.availDot, { backgroundColor: availColor }]} />
+        {/* F-21 · stellina preferito */}
+        {onToggleFavorite && (
+          <TouchableOpacity
+            style={styles.favBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => onToggleFavorite(product.id)}
+            accessibilityLabel={product.isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+          >
+            <Ionicons
+              name={product.isFavorite ? 'star' : 'star-outline'}
+              size={18}
+              color={product.isFavorite ? '#f59e0b' : COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.productInfo}>
@@ -267,7 +285,7 @@ export default function CatalogScreen() {
 
   // Converte lo statusFilter (pill) in parametri API
   function statusToApiParams(s: StatusFilter): Partial<{
-    availability: string; isNew: boolean; isPromo: boolean; isMine: boolean;
+    availability: string; isNew: boolean; isPromo: boolean; isMine: boolean; favorites: boolean;
   }> {
     switch (s) {
       case 'available': return { availability: 'AVAILABLE' };
@@ -276,9 +294,22 @@ export default function CatalogScreen() {
       case 'new':       return { isNew: true };
       case 'promo':     return { isPromo: true };
       case 'mine':      return { isMine: true };
+      case 'favorites': return { favorites: true };
       default:          return {};
     }
   }
+
+  // F-21 · toggle preferito con update ottimistico della lista.
+  const handleToggleFavorite = useCallback(async (productId: string) => {
+    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, isFavorite: !p.isFavorite } : p)));
+    try {
+      const next = await toggleFavorite(productId);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, isFavorite: next } : p)));
+    } catch {
+      // revert su errore
+      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, isFavorite: !p.isFavorite } : p)));
+    }
+  }, []);
 
   // ── Carica catalogo ──────────────────────────────────────────────────────
   const loadCatalog = useCallback(async (pageToLoad: number, reset = false) => {
@@ -560,6 +591,7 @@ export default function CatalogScreen() {
               supplierId={activeSupplierId!}
               catalogDiscountPercent={catalogDiscountPercent}
               onPress={() => navigation.navigate('ProductDetail', { productId: item.id, supplierId: activeSupplierId! })}
+              onToggleFavorite={handleToggleFavorite}
             />
           )}
           onEndReached={loadMore}
@@ -744,6 +776,13 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -3, left: -3,
     width: 10, height: 10, borderRadius: 5,
     borderWidth: 1.5, borderColor: COLORS.surface,
+  },
+  // F-21 · stellina preferito, in basso a destra del thumb
+  favBtn: {
+    position: 'absolute', bottom: -6, right: -6,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    justifyContent: 'center', alignItems: 'center',
   },
   productInfo: { flex: 1, minWidth: 0 },
   badgeRow: { flexDirection: 'row', gap: 4, marginBottom: 2 },
