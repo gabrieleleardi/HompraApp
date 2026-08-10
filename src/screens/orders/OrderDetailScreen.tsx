@@ -9,6 +9,7 @@ import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Order } from '@/types';
 import type { RootStackParamList } from '@/navigation';
+import { parseDeliveryDateText, toISODateLocal, formatDeliveryDate } from '@/utils/date';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -83,7 +84,7 @@ export default function OrderDetailScreen({ route }: Props) {
         {order.deliveryDateText && (
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>{t('mobile.orders.delivery', 'Consegna')}: {order.deliveryDateText}</Text>
+            <Text style={styles.infoText}>{t('mobile.orders.delivery', 'Consegna')}: {formatDeliveryDate(order.deliveryDateText, LOCALE_MAP[lang] ?? 'it-IT')}</Text>
           </View>
         )}
         {/* F-17b · Data consegna confermata dal fornitore.
@@ -97,8 +98,9 @@ export default function OrderDetailScreen({ route }: Props) {
             const r = new Date(order.requestedDate);
             if (!Number.isNaN(r.getTime())) reqISO = r.toISOString().slice(0, 10);
           } else if (order.deliveryDateText) {
-            const p = new Date(order.deliveryDateText);
-            if (!Number.isNaN(p.getTime())) reqISO = p.toISOString().slice(0, 10);
+            // Riconosce ISO e DD/MM/YYYY: evita il misparse USA di new Date().
+            const p = parseDeliveryDateText(order.deliveryDateText);
+            if (p) reqISO = toISODateLocal(p);
           }
           const changed = reqISO !== null && reqISO !== confISO;
           const localeKey = LOCALE_MAP[lang] ?? 'it-IT';

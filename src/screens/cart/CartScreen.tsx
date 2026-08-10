@@ -420,8 +420,16 @@ function CartCard({ cart }: { cart: Cart }) {
   const [error,           setError]           = useState('');
   const [success,         setSuccess]         = useState(false);
 
+  // Display umano (DD/MM/YYYY) mostrato nel carrello.
   const deliveryDateStr = deliveryDate
     ? `${deliveryDate.getDate().toString().padStart(2,'0')}/${(deliveryDate.getMonth()+1).toString().padStart(2,'0')}/${deliveryDate.getFullYear()}`
+    : '';
+
+  // ISO YYYY-MM-DD per l'API. FIX bug data consegna: prima si inviava
+  // "11/08/2026" (11 agosto) e il web lo leggeva con new Date() come formato
+  // USA MM/DD → 8 novembre. L'ISO è deterministico e coerente col checkout web.
+  const deliveryDateIso = deliveryDate
+    ? `${deliveryDate.getFullYear()}-${(deliveryDate.getMonth()+1).toString().padStart(2,'0')}-${deliveryDate.getDate().toString().padStart(2,'0')}`
     : '';
 
   // Sconti applicati per questo cliente su questo fornitore
@@ -534,7 +542,7 @@ function CartCard({ cart }: { cart: Cart }) {
     }
     setLoading(true); setError('');
     try {
-      await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateStr || undefined });
+      await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateIso || undefined });
       setSuccess(true);
       await fetchCarts();
     } catch (e) { setError(getErrorMessage(e)); }
