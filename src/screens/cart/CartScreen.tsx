@@ -119,7 +119,11 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
     item.quantity,
     (n) => updateItem(item.productId, supplierId, n),
   );
-  const subtotal = price * localQty;
+  // Subtotale riga: per i prodotti a KG usa il peso medio (come il riepilogo e
+  // il backend), altrimenti prezzo × quantità.
+  const isKgRow = item.product.uom?.toUpperCase() === 'KG';
+  const rowWeight = isKgRow ? (item.product.averageWeight || 1.0) : 1.0;
+  const subtotal = Math.round(price * rowWeight * localQty);
 
   // Editing locale della quantità: l'utente può digitare il numero a mano.
   const [editing, setEditing] = useState(false);
@@ -446,10 +450,24 @@ function CartCard({ cart }: { cart: Cart }) {
   // Helper di formattazione legato alla valuta del carrello
   const f = (cents: number) => fmt(cents, currency);
 
-  // Calcolo fiscale per aliquota IVA (replica CartClientWrapper.tsx lato web)
+  // Split pronti / in-arrivo PRIMA del riepilogo: totale, minimo e spese si
+  // calcolano SOLO sui prodotti "pronta consegna". Gli item in arrivo finiscono
+  // in un pre-ordine separato (come fa il backend) e NON entrano nel totale
+  // pagabile né concorrono al minimo/spese.
+  const targetDate = new Date(deliveryDate ?? new Date());
+  targetDate.setHours(0, 0, 0, 0);
+  const availableItems: CartItem[] = [];
+  const preOrderItems: CartItem[] = [];
+  for (const item of cart.items) {
+    if (isProductReady(item.product, targetDate)) availableItems.push(item);
+    else preOrderItems.push(item);
+  }
+
+  // Calcolo fiscale per aliquota IVA (replica CartClientWrapper.tsx lato web).
+  // SOLO sui disponibili: gli in-arrivo non sono in questo ordine.
   const taxBreakdown: Record<number, { taxableCents: number; vatCents: number }> = {};
 
-  cart.items.forEach((item) => {
+  availableItems.forEach((item) => {
     const basePrice = item.product.customerPriceCents ?? item.product.priceCents;
     const hasCatDisc = catalogDiscountPercent > 0 && item.product.customerPriceCents == null;
     const unitPrice = hasCatDisc
@@ -502,19 +520,10 @@ function CartCard({ cart }: { cart: Cart }) {
   const shipping          = (belowMin && hasShippingOption) ? SHIPPING : 0;
   const total             = subtotalAfterDiscount + shipping;
 
-  // Raggruppamento in 2 gruppi (identico al sito web):
-  // PRONTA CONSEGNA = prodotti disponibili alla data selezionata
-  // PRE-ORDINE (IN ARRIVO) = prodotti non ancora disponibili per quella data
-  const targetDate = new Date(deliveryDate ?? new Date());
-  targetDate.setHours(0, 0, 0, 0);
-
-  const availableItems: CartItem[] = [];
-  const preOrderItems: CartItem[] = [];
-  for (const item of cart.items) {
-    if (isProductReady(item.product, targetDate)) availableItems.push(item);
-    else preOrderItems.push(item);
-  }
-
+  // Raggruppamento in 2 gruppi per la visualizzazione (split già calcolato
+  // sopra, prima del riepilogo):
+  //   PRONTA CONSEGNA        = prodotti disponibili alla data selezionata
+  //   PRE-ORDINE (IN ARRIVO) = prodotti non ancora disponibili per quella data
   const grouped = [
     { key: 'AVAILABLE' as Availability,   label: t('mobile.cart.readyDelivery', 'PRONTA CONSEGNA'),        items: availableItems },
     { key: 'COMING_SOON' as Availability, label: t('mobile.cart.preOrder',      'PRE-ORDINE (IN ARRIVO)'), items: preOrderItems },
