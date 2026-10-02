@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hompra",
     "slug": "hompra-app",
-    "version": "1.1.4",
+    "version": "1.1.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hompra.app",
-      "buildNumber": "10"
+      "buildNumber": "12"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,11 +23,11 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.hompra.app",
-      "versionCode": 7,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
+      "versionCode": 11,
+      "compileSdkVersion": 36,
+      "targetSdkVersion": 36,
       "minSdkVersion": 24,
-      "buildToolsVersion": "35.0.0"
+      "buildToolsVersion": "36.1.0"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -35,11 +35,14 @@
     "plugins": [
       "expo-secure-store",
       "expo-asset",
-      ["expo-font", {
-        "fonts": [
-          "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
-        ]
-      }],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
+          ]
+        }
+      ],
       "./plugins/withFmtConstevalFix"
     ],
     "scheme": "hompra"

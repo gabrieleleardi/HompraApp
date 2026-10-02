@@ -32,7 +32,7 @@ export default function TabIcon({ name, size, color }: TabIconProps) {
   return (
     <Text
       style={{
-        fontFamily: 'Ionicons',  // maiuscolo — match esatto del filename TTF
+        fontFamily: 'ionicons',  // minuscolo — stessa famiglia di @expo/vector-icons (Android è case-sensitive)
         fontSize: size,
         color,
         // Necessario per allineamento corretto su Android
