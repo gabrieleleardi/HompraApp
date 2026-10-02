@@ -18,6 +18,7 @@ import {
   formatPackLabel,
 } from '@/lib/saleMultiple';
 import { useDebouncedQty } from '@/hooks/useDebouncedQty';
+import { orderUnitLabel, priceUnitSuffix, formatKg } from '@/utils/unitDisplay';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function fmt(cents: number, currency = 'CHF') {
@@ -167,7 +168,7 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
           <Text style={styles.itemCode}>{t('mobile.cart.code', 'Codice')}: {item.product.code}</Text>
           <View style={styles.itemPriceRow}>
             <Text style={styles.itemUnitPrice}>
-              {fmt(price, item.product.currency)} / {item.product.uom ?? 'PZ'}
+              {fmt(price, item.product.currency)} {priceUnitSuffix(item.product.uom) || `/ ${item.product.uom ?? 'PZ'}`}
             </Text>
             {item.product.customerPriceCents != null && (
               <View style={styles.dedicatoBadge}>
@@ -189,6 +190,11 @@ function CartItemRow({ item, supplierId, catalogDiscountPercent = 0 }: {
         <View style={styles.itemSubtotal}>
           <Text style={styles.subtotalLabel}>{t('mobile.cart.subtotal', 'SUBTOTALE')}</Text>
           <Text style={styles.subtotalValue}>{fmt(subtotal, item.product.currency)}</Text>
+          {isKgRow && (
+            <Text style={styles.itemCode}>
+              {localQty} {orderUnitLabel(item.product)} ≈ {formatKg(rowWeight * localQty)} kg
+            </Text>
+          )}
         </View>
       </View>
 

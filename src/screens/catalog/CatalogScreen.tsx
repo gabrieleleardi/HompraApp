@@ -29,6 +29,7 @@ import {
   formatPackLabel,
 } from '@/lib/saleMultiple';
 import { useDebouncedQty } from '@/hooks/useDebouncedQty';
+import { orderUnitLabel, isWeightPriced } from '@/utils/unitDisplay';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -147,18 +148,18 @@ function ProductRow({
         <Text style={styles.productName} numberOfLines={4}>{product.name}</Text>
         <View style={styles.productMeta}>
           <View style={styles.productCodeBadge}><Text style={styles.productCodeText}>#{product.code}</Text></View>
-          {product.uom ? <Text style={styles.productUom}>· {product.uom}</Text> : null}
+          {product.uom ? <Text style={styles.productUom}>· {orderUnitLabel(product)}</Text> : null}
         </View>
         {hasCatalogDiscount ? (
           <View style={styles.priceRow}>
             <Text style={styles.productPriceOld}>{formatPrice(basePrice, product.currency)}</Text>
-            <Text style={styles.productPriceDisc}>{formatPrice(price, product.currency)}</Text>
+            <Text style={styles.productPriceDisc}>{formatPrice(price, product.currency)}{isWeightPriced(product.uom) ? ' /kg' : ''}</Text>
             <View style={styles.discountBadge}>
               <Text style={styles.discountBadgeText}>-{catalogDiscountPercent}%</Text>
             </View>
           </View>
         ) : (
-          <Text style={styles.productPrice}>{formatPrice(price, product.currency)}</Text>
+          <Text style={styles.productPrice}>{formatPrice(price, product.currency)}{isWeightPriced(product.uom) ? ' /kg' : ''}</Text>
         )}
         {/* F-18 · chip cartone (badge giallo allineato al web) */}
         {hasSaleMultiple(product.saleMultiple) && (

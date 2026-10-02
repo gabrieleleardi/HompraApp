@@ -63,6 +63,7 @@ export interface Product {
   expectedArrival?:  string | null;  // data attesa ISO (COMING_SOON)
   taxRate?:          number | null;  // aliquota IVA (es. 2.6, 8.1)
   averageWeight?:    number | null;  // peso medio per unità (per prodotti a KG)
+  orderUnit?:        string | null;  // unità d'ordine (PZ/CONF) per prodotti a kg (prezzo al kg)
   saleMultiple?:     number | null;  // F-18 · null = vendita libera, >=2 = vincolo cartone
   customerPriceCents?: number | null; // prezzo dedicato se presente
   attributes?:       ProductAttribute[]; // F-20 · etichette strutturate visibili
@@ -74,7 +75,7 @@ export interface CartItem {
   productId: string;
   quantity:  number;
   notes?:    string | null;
-  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival' | 'taxRate' | 'averageWeight' | 'saleMultiple'> & {
+  product:   Pick<Product, 'id' | 'code' | 'name' | 'uom' | 'priceCents' | 'imageUrl' | 'currency' | 'availability' | 'isPromo' | 'cutoffTime' | 'restockRulesJson' | 'leadTimeDays' | 'expectedArrival' | 'taxRate' | 'averageWeight' | 'orderUnit' | 'saleMultiple'> & {
     customerPriceCents?: number | null;
   };
 }

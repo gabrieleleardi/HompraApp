@@ -22,6 +22,7 @@ import {
   formatPackLabel,
 } from '@/lib/saleMultiple';
 import { useDebouncedQty } from '@/hooks/useDebouncedQty';
+import { orderUnitLabel, isWeightPriced, formatKg } from '@/utils/unitDisplay';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -159,7 +160,7 @@ export default function ProductDetailScreen({ route }: Props) {
             />
           </TouchableOpacity>
         </View>
-        <Text style={styles.productCode}>{t('mobile.cart.code', 'Codice')}. {product.code}{product.uom ? ` · ${product.uom}` : ''}</Text>
+        <Text style={styles.productCode}>{t('mobile.cart.code', 'Codice')}. {product.code}{product.uom ? ` · ${orderUnitLabel(product)}` : ''}</Text>
 
         {product.category && (
           <Text style={styles.category}>{product.category}{product.subcategory ? ` › ${product.subcategory}` : ''}</Text>
@@ -168,7 +169,7 @@ export default function ProductDetailScreen({ route }: Props) {
         <View style={styles.priceRow}>
           {hasCatalogDiscount ? (
             <>
-              <Text style={[styles.price, { color: COLORS.success }]}>{formatPrice(price, product.currency)}</Text>
+              <Text style={[styles.price, { color: COLORS.success }]}>{formatPrice(price, product.currency)}{isWeightPriced(product.uom) ? ' /kg' : ''}</Text>
               <Text style={styles.originalPrice}>{formatPrice(basePrice, product.currency)}</Text>
               <View style={styles.catDiscBadge}>
                 <Text style={styles.catDiscBadgeText}>-{catalogDiscountPercent}%</Text>
@@ -176,7 +177,7 @@ export default function ProductDetailScreen({ route }: Props) {
             </>
           ) : (
             <>
-              <Text style={styles.price}>{formatPrice(price, product.currency)}</Text>
+              <Text style={styles.price}>{formatPrice(price, product.currency)}{isWeightPriced(product.uom) ? ' /kg' : ''}</Text>
               {product.customerPriceCents && product.customerPriceCents !== product.priceCents && (
                 <Text style={styles.originalPrice}>{formatPrice(product.priceCents, product.currency)}</Text>
               )}
@@ -184,12 +185,18 @@ export default function ProductDetailScreen({ route }: Props) {
           )}
         </View>
 
+        {isWeightPriced(product.uom) && (
+          <Text style={styles.category}>
+            {t('mobile.product.pricedPerKg', 'Prezzo al kg')} · ≈ {formatKg(product.averageWeight && product.averageWeight > 0 ? product.averageWeight : 1)} kg / {orderUnitLabel(product)}
+          </Text>
+        )}
+
         {/* F-18 · Chip vendita a multipli (cartone) */}
         {hasMultiple && (
           <View style={styles.packBadge}>
             <Ionicons name="cube-outline" size={14} color="#92400e" style={{ marginRight: 6 }} />
             <Text style={styles.packBadgeText}>
-              {t('mobile.product.minQty', 'min')} {multiple} {(product.uom ?? 'PZ').toUpperCase()} · {formatPackLabel(product.saleMultiple, product.uom)} {formatPrice(packPriceCents, product.currency)}
+              {t('mobile.product.minQty', 'min')} {multiple} {orderUnitLabel(product)} · {formatPackLabel(product.saleMultiple, product.uom)} {formatPrice(packPriceCents, product.currency)}
             </Text>
           </View>
         )}

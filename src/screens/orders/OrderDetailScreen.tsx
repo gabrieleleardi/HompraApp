@@ -10,6 +10,7 @@ import { COLORS, SPACING, RADIUS } from '@/constants';
 import type { Order } from '@/types';
 import type { RootStackParamList } from '@/navigation';
 import { parseDeliveryDateText, toISODateLocal, formatDeliveryDate } from '@/utils/date';
+import { orderUnitLabel } from '@/utils/unitDisplay';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -140,7 +141,7 @@ export default function OrderDetailScreen({ route }: Props) {
           <View key={item.id} style={[styles.itemRow, idx < order.items.length - 1 && styles.itemBorder]}>
             <View style={styles.itemLeft}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.itemCode}>{item.productCode}{item.productUom ? ` · ${item.productUom}` : ''}</Text>
+              <Text style={styles.itemCode}>{item.productCode}{item.productUom ? ` · ${orderUnitLabel({ uom: item.productUom, orderUnit: (item as any).product?.orderUnit })}` : ''}</Text>
               {item.itemNote && <Text style={styles.itemNote}>{item.itemNote}</Text>}
             </View>
             <View style={styles.itemRight}>
