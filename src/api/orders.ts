@@ -15,6 +15,7 @@ export async function checkout(params: {
   supplierId:      string;
   notes?:          string;
   deliveryDate?:   string;
+  locationId?:     string; // sede di consegna scelta (destinazione)
 }): Promise<CheckoutResponse> {
   const { data } = await apiClient.post<CheckoutResponse>('/orders/checkout', params);
   return data;

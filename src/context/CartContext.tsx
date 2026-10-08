@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { getCart, updateCartItem, clearCart as apiClearCart } from '@/api/cart';
-import type { Cart } from '@/types';
+import type { Cart, BuyerLocation } from '@/types';
 
 interface CartContextValue {
   carts:           Cart[];
+  locations:       BuyerLocation[];
   totalItems:      number;
   isLoading:       boolean;
   fetchCarts:      (supplierId?: string) => Promise<void>;
@@ -15,13 +16,15 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [carts,     setCarts]     = useState<Cart[]>([]);
+  const [locations, setLocations] = useState<BuyerLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchCarts = useCallback(async (supplierId?: string) => {
     setIsLoading(true);
     try {
-      const { carts: data } = await getCart(supplierId);
+      const { carts: data, locations: locs } = await getCart(supplierId);
       setCarts(data);
+      setLocations(locs ?? []);
     } finally {
       setIsLoading(false);
     }
@@ -40,7 +43,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const totalItems = carts.reduce((sum, c) => sum + c.items.length, 0);
 
   return (
-    <CartContext.Provider value={{ carts, totalItems, isLoading, fetchCarts, updateItem, clearSupplierCart }}>
+    <CartContext.Provider value={{ carts, locations, totalItems, isLoading, fetchCarts, updateItem, clearSupplierCart }}>
       {children}
     </CartContext.Provider>
   );

@@ -9,7 +9,8 @@ import { checkout }        from '@/api/orders';
 import { getErrorMessage } from '@/api/client';
 import { useI18n }         from '@/i18n/I18nContext';
 import { COLORS, SPACING, RADIUS } from '@/constants';
-import type { Cart, CartItem, Availability } from '@/types';
+import type { Cart, CartItem, Availability, BuyerLocation } from '@/types';
+import { pickDeliveryRulesForLocation } from '@/utils/deliveryDays';
 import {
   hasSaleMultiple,
   snapQuantityToMultiple,
@@ -416,14 +417,20 @@ const dpStyles = StyleSheet.create({
 });
 
 // ─── CartCard ────────────────────────────────────────────────────────────────
-function CartCard({ cart }: { cart: Cart }) {
+function CartCard({ cart, locations = [] }: { cart: Cart; locations?: BuyerLocation[] }) {
   const { clearSupplierCart, fetchCarts } = useCart();
   const { t } = useI18n();
 
   // Checkout state
   const [deliveryDate,    setDeliveryDate]    = useState<Date | null>(null);
   const [showDatePicker,  setShowDatePicker]  = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState(t('mobile.cart.mainAddress', 'Sede Principale'));
+  // Sede di consegna scelta (default = sede predefinita, altrimenti la prima).
+  const defaultLocationId = (locations.find(l => l.isDefault) ?? locations[0])?.id ?? null;
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(defaultLocationId);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const selectedLocation = locations.find(l => l.id === selectedLocationId) ?? null;
+  // Giorni di consegna della sede selezionata (fallback Generale).
+  const effectiveRules = pickDeliveryRulesForLocation(cart.deliveryRules, selectedLocationId);
   const [orderNote,       setOrderNote]       = useState('');
   const [acceptShipping,  setAcceptShipping]  = useState(false);
   const [loading,         setLoading]         = useState(false);
@@ -557,7 +564,7 @@ function CartCard({ cart }: { cart: Cart }) {
     }
     setLoading(true); setError('');
     try {
-      await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateIso || undefined });
+      await checkout({ supplierId: cart.supplierId, notes: orderNote, deliveryDate: deliveryDateIso || undefined, locationId: selectedLocationId || undefined });
       setSuccess(true);
       await fetchCarts();
     } catch (e) { setError(getErrorMessage(e)); }
@@ -695,9 +702,18 @@ function CartCard({ cart }: { cart: Cart }) {
       {/* ── Sede di consegna ── */}
       <View style={styles.checkoutSection}>
         <Text style={styles.checkoutSectionLabel}>{t('mobile.cart.deliveryAddress', 'SEDE DI CONSEGNA')}</Text>
-        <TouchableOpacity style={styles.selectRow}>
-          <Text style={styles.selectValue}>{deliveryAddress}</Text>
-          <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+        <TouchableOpacity
+          style={styles.selectRow}
+          onPress={() => { if (locations.length > 1) setShowLocationPicker(true); }}
+          activeOpacity={locations.length > 1 ? 0.7 : 1}
+        >
+          <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
+          <Text style={[styles.selectValue, !selectedLocation && { color: COLORS.textSecondary }]}>
+            {selectedLocation
+              ? `${selectedLocation.name}${selectedLocation.city ? ` · ${selectedLocation.city}` : ''}`
+              : t('mobile.cart.mainAddress', 'Sede Principale')}
+          </Text>
+          {locations.length > 1 && <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />}
         </TouchableOpacity>
 
         <Text style={[styles.checkoutSectionLabel, { marginTop: SPACING.md }]}>{t('mobile.cart.deliveryDate', 'DATA DI CONSEGNA RICHIESTA')}</Text>
@@ -784,15 +800,85 @@ function CartCard({ cart }: { cart: Cart }) {
         value={deliveryDate}
         onConfirm={d => { setDeliveryDate(d); setShowDatePicker(false); }}
         onDismiss={() => setShowDatePicker(false)}
-        deliveryRules={cart.deliveryRules}
+        deliveryRules={effectiveRules}
+      />
+
+      {/* ── Selettore sede di consegna ── */}
+      <LocationPickerModal
+        visible={showLocationPicker}
+        locations={locations}
+        selectedId={selectedLocationId}
+        onSelect={(id) => {
+          setShowLocationPicker(false);
+          if (id !== selectedLocationId) {
+            setSelectedLocationId(id);
+            setDeliveryDate(null); // i giorni validi cambiano: l'utente ri-sceglie
+          }
+        }}
+        onDismiss={() => setShowLocationPicker(false)}
       />
     </View>
   );
 }
 
+// ─── LocationPickerModal ──────────────────────────────────────────────────────
+function LocationPickerModal({ visible, locations, selectedId, onSelect, onDismiss }: {
+  visible: boolean;
+  locations: BuyerLocation[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
+      <TouchableOpacity style={dpStyles.overlay} activeOpacity={1} onPress={onDismiss} />
+      <View style={dpStyles.sheet}>
+        <View style={dpStyles.sheetHeader}>
+          <Text style={dpStyles.sheetTitle}>{t('mobile.cart.deliveryAddress', 'SEDE DI CONSEGNA')}</Text>
+          <TouchableOpacity onPress={onDismiss}>
+            <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={{ maxHeight: 360 }}>
+          {locations.map((loc) => {
+            const active = loc.id === selectedId;
+            return (
+              <TouchableOpacity
+                key={loc.id}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  paddingVertical: 14, paddingHorizontal: 4,
+                  borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+                }}
+                onPress={() => onSelect(loc.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={active ? 'radio-button-on' : 'radio-button-off'}
+                  size={20}
+                  color={active ? COLORS.primary : COLORS.textSecondary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text }}>{loc.name}</Text>
+                  {(loc.address || loc.city) && (
+                    <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 2 }}>
+                      {[loc.address, loc.postalCode, loc.city].filter(Boolean).join(' · ')}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── CartScreen ──────────────────────────────────────────────────────────────
 export default function CartScreen() {
-  const { carts, isLoading, fetchCarts } = useCart();
+  const { carts, locations, isLoading, fetchCarts } = useCart();
   const { t } = useI18n();
 
   useEffect(() => { fetchCarts(); }, [fetchCarts]);
@@ -814,7 +900,7 @@ export default function CartScreen() {
           <Text style={styles.emptySubtitle}>{t('mobile.cart.emptySub', 'Aggiungi prodotti dal catalogo')}</Text>
         </View>
       ) : (
-        carts.map(cart => <CartCard key={cart.id} cart={cart} />)
+        carts.map(cart => <CartCard key={cart.id} cart={cart} locations={locations} />)
       )}
     </ScrollView>
   );

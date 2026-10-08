@@ -85,6 +85,16 @@ export interface DeliveryRule {
   cutoffDay?:       string | null;
   cutoffTime?:      string | null;
   cutoffDaysBefore?: number | null;
+  buyerLocationId?: string | null; // sede a cui si applica; null = set Generale
+}
+
+export interface BuyerLocation {
+  id:         string;
+  name:       string;
+  address?:   string | null;
+  city?:      string | null;
+  postalCode?: string | null;
+  isDefault?: boolean;
 }
 
 export interface Cart {
@@ -196,6 +206,7 @@ export interface CatalogResponse {
 
 export interface CartResponse {
   carts: Cart[];
+  locations?: BuyerLocation[]; // sedi di consegna del buyer (destinazioni)
 }
 
 export interface OrdersResponse {
